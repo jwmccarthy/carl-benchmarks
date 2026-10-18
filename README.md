@@ -26,13 +26,13 @@ Building CARL requires a CUDA toolkit with `nvcc`. The RocketSim baseline does n
 ## Smoke Tests
 
 ```bash
-uv run python -m carl_benchmarks.sb3_rocketsim --smoke-test --frameskip 4
+uv run python benchmarks/sb3_rocketsim.py --smoke-test --frameskip 4
 ```
 
 Train the minimal RocketSim baseline with a random lookup-table opponent:
 
 ```bash
-uv run python -m carl_benchmarks.sb3_rocketsim \
+uv run python benchmarks/sb3_rocketsim.py \
   --num-envs 8 --frameskip 4 --timesteps 1000000
 ```
 
@@ -41,13 +41,13 @@ The runner holds total samples per PPO collection constant. Its defaults collect
 For a serial run:
 
 ```bash
-uv run python -m carl_benchmarks.sb3_rocketsim --num-envs 1
+uv run python benchmarks/sb3_rocketsim.py --num-envs 1
 ```
 
 For a 16-environment rollout with the same algorithmic batch:
 
 ```bash
-uv run python -m carl_benchmarks.sb3_rocketsim --num-envs 16
+uv run python benchmarks/sb3_rocketsim.py --num-envs 16
 ```
 
 ## Matched PPO Updates
