@@ -1,7 +1,9 @@
 import argparse
+import time
 
 import gymnasium as gym
 import numpy as np
+import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 
@@ -86,14 +88,31 @@ def main() -> None:
     parser.add_argument("--num-envs", type=int, default=1)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
-    parser.add_argument("--timesteps", type=int, default=1_000_000)
+    parser.add_argument("--timesteps", type=int, default=10_000_000)
+    parser.add_argument("--total-batch-size", type=int, default=32_768)
+    parser.add_argument("--minibatch-size", type=int, default=32_768)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--smoke-test", action="store_true")
 
     args = parser.parse_args()
 
-    if min(args.num_envs, args.frameskip, args.max_ticks, args.timesteps) < 1:
+    if min(
+        args.num_envs,
+        args.frameskip,
+        args.max_ticks,
+        args.timesteps,
+        args.total_batch_size,
+        args.minibatch_size,
+        args.epochs,
+    ) < 1:
         parser.error("environment and training sizes must be positive")
+    if args.total_batch_size % args.num_envs:
+        parser.error("--total-batch-size must divide evenly across --num-envs")
+    if args.total_batch_size % args.minibatch_size:
+        parser.error("--minibatch-size must divide --total-batch-size")
+
+    rollout_steps = args.total_batch_size // args.num_envs
 
     def make_env(index: int):
         return lambda: RocketSimEnv(args.frameskip, args.max_ticks, args.seed + index)
@@ -107,9 +126,39 @@ def main() -> None:
         env.close()
         return
 
-    model = PPO("MlpPolicy", env, device="cpu", seed=args.seed, verbose=1)
+    model = PPO(
+        "MlpPolicy",
+        env,
+        n_steps=rollout_steps,
+        batch_size=args.minibatch_size,
+        n_epochs=args.epochs,
+        learning_rate=3e-4,
+        gamma=0.99,
+        gae_lambda=0.95,
+        clip_range=0.2,
+        ent_coef=0.0,
+        vf_coef=0.5,
+        max_grad_norm=0.5,
+        policy_kwargs={"net_arch": [64, 64], "activation_fn": nn.Tanh},
+        device="cpu",
+        seed=args.seed,
+        verbose=1,
+    )
 
+    started = time.perf_counter()
     model.learn(args.timesteps)
+    elapsed = time.perf_counter() - started
+
+    collections = model.num_timesteps // args.total_batch_size
+    gradient_steps = collections * args.epochs * (
+        args.total_batch_size // args.minibatch_size
+    )
+    print(
+        f"completed {model.num_timesteps} transitions in {elapsed:.2f}s "
+        f"({model.num_timesteps / elapsed:.0f} transitions/s); "
+        f"{collections} collections, {gradient_steps} gradient updates",
+    )
+
     env.close()
 
 

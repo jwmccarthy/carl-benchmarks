@@ -36,6 +36,20 @@ uv run python -m carl_benchmarks.sb3_rocketsim \
   --num-envs 8 --frameskip 4 --timesteps 1000000
 ```
 
+The runner holds total samples per PPO collection constant. Its defaults collect 32,768 actor transitions per collection, run 10 epochs of full-batch PPO, and time a requested 10,000,000 transitions. It prints actual transitions, elapsed time, collections, and gradient updates when finished.
+
+For a serial run:
+
+```bash
+uv run python -m carl_benchmarks.sb3_rocketsim --num-envs 1
+```
+
+For a 16-environment rollout with the same algorithmic batch:
+
+```bash
+uv run python -m carl_benchmarks.sb3_rocketsim --num-envs 16
+```
+
 ## Matched PPO Updates
 
 The CARL/JARL runner will be added next. It will use the same 90-action table and reward configuration, then expose matched PPO rollout, minibatch, and epoch settings.
