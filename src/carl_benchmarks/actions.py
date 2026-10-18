@@ -1,5 +1,3 @@
-"""Shared discrete action representation for both simulator stacks."""
-
 import numpy as np
 import torch
 
@@ -7,7 +5,6 @@ from rlgym.rocket_league.action_parsers import LookupTableAction
 
 
 def lookup_table() -> np.ndarray:
-    """Return RLGym's canonical 90-action table."""
     table = np.asarray(LookupTableAction.make_lookup_table(), dtype=np.int64)
     if table.shape != (90, 8):
         raise RuntimeError(f"expected RLGym's 90x8 action table, got {table.shape}")
@@ -17,7 +14,6 @@ def lookup_table() -> np.ndarray:
 
 
 def carl_lookup_table(device: torch.device) -> torch.Tensor:
-    """Map RLGym controls to CARL's seven categorical control fields."""
     table = lookup_table()
 
     def axis(values: np.ndarray) -> np.ndarray:

@@ -1,5 +1,3 @@
-"""Minimal SB3 PPO baseline using RLGym and RocketSim."""
-
 import argparse
 
 import gymnasium as gym
@@ -21,13 +19,12 @@ from rlgym.rocket_league.state_mutators import (
 
 
 class RocketSimEnv(gym.Env):
-    """Train one car against a uniformly sampled lookup-table opponent."""
-
     metadata = {"render_modes": []}
 
     def __init__(self, frameskip: int = 4, max_ticks: int = 36_000, seed: int = 0):
         super().__init__()
         self.rng = np.random.default_rng(seed)
+
         self.env = RLGym(
             state_mutator=MutatorSequence(
                 FixedTeamSizeMutator(1, 1), KickoffMutator(),
@@ -39,10 +36,12 @@ class RocketSimEnv(gym.Env):
             termination_cond=GoalCondition(),
             truncation_cond=TimeoutCondition(max_ticks / 120),
         )
+
         initial = self.env.reset()
         self.player, self.opponent = self.env.agents
         _, observation_size = self.env.observation_space(self.player)
         _, action_count = self.env.action_space(self.player)
+
         self.observation_space = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
@@ -55,6 +54,7 @@ class RocketSimEnv(gym.Env):
     def reset(self, *, seed: int | None = None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
+
         observations = self.env.reset()
         self._observation = observations[self.player]
         return self._observation, {}
@@ -62,8 +62,11 @@ class RocketSimEnv(gym.Env):
     def step(self, action: int):
         actions = {
             self.player: np.asarray([action], dtype=np.int64),
-            self.opponent: np.asarray([self.rng.integers(self.action_space.n)], dtype=np.int64),
+            self.opponent: np.asarray(
+                [self.rng.integers(self.action_space.n)], dtype=np.int64,
+            ),
         }
+
         observations, rewards, terminated, truncated = self.env.step(actions)
         self._observation = observations[self.player]
         return (
@@ -86,6 +89,7 @@ def main() -> None:
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--smoke-test", action="store_true")
+
     args = parser.parse_args()
 
     if min(args.num_envs, args.frameskip, args.max_ticks, args.timesteps) < 1:
@@ -95,6 +99,7 @@ def main() -> None:
         return lambda: RocketSimEnv(args.frameskip, args.max_ticks, args.seed + index)
 
     env = make_vec_env(make_env(0), n_envs=args.num_envs, seed=args.seed)
+
     if args.smoke_test:
         observations = env.reset()
         observations, _, _, _ = env.step(np.zeros(args.num_envs, dtype=np.int64))
@@ -103,6 +108,7 @@ def main() -> None:
         return
 
     model = PPO("MlpPolicy", env, device="cpu", seed=args.seed, verbose=1)
+
     model.learn(args.timesteps)
     env.close()
 
