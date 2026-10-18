@@ -50,6 +50,23 @@ For a 16-environment rollout with the same algorithmic batch:
 uv run python benchmarks/sb3_rocketsim.py --num-envs 16
 ```
 
-## Matched PPO Updates
+## CARL
 
-The CARL/JARL runner will be added next. It will use the same 90-action table and reward configuration, then expose matched PPO rollout, minibatch, and epoch settings.
+Run a CARL smoke test after installing the optional local CARL and JARL dependencies:
+
+```bash
+uv run --extra carl python benchmarks/jarl_carl.py --smoke-test --n-sim 256
+```
+
+The CARL runner trains blue against a random lookup-table opponent and uses CARL's native goal reward, matching the RocketSim baseline. It uses the same fixed PPO defaults and timing summary. For the default 32,768-transition total batch:
+
+| `n_sim` | Rollout steps |
+| ---: | ---: |
+| 256 | 128 |
+| 512 | 64 |
+| 1,024 | 32 |
+| 2,048 | 16 |
+
+```bash
+uv run --extra carl python benchmarks/jarl_carl.py --n-sim 512
+```
