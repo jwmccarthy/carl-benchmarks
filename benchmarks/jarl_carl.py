@@ -38,8 +38,10 @@ class LookupCARLEnv:
         self.device = env.device
         self.generator = th.Generator(device=self.device).manual_seed(seed)
         self.lookup = carl_lookup_table(self.device)
+
         self.blue_indices = th.arange(env.n_sim, device=self.device) * env.n_cars
         self.orange_indices = self.blue_indices + 1
+
         self.single_observation_space = env.single_observation_space
         self.single_action_space = gym.spaces.Discrete(90)
         self.observation_space = batch_space(self.single_observation_space, self.n_envs)
@@ -97,12 +99,15 @@ def main() -> None:
     parser.add_argument("--n-sim", type=int, default=256)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
+
     parser.add_argument("--timesteps", type=int, default=10_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
+
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--smoke-test", action="store_true")
+
     args = parser.parse_args()
 
     if min(
@@ -115,6 +120,7 @@ def main() -> None:
         args.epochs,
     ) < 1:
         parser.error("simulation and training sizes must be positive")
+
     if args.total_batch_size % args.n_sim:
         parser.error("--total-batch-size must divide evenly across --n-sim")
     if args.total_batch_size % args.minibatch_size:
@@ -122,6 +128,7 @@ def main() -> None:
 
     th.manual_seed(args.seed)
     rollout_steps = args.total_batch_size // args.n_sim
+
     base = CARLTorchVectorEnv(
         n_sim=args.n_sim,
         n_blue=1,
@@ -135,6 +142,7 @@ def main() -> None:
     env = LookupCARLEnv(base, args.seed)
 
     observation = env.reset()
+
     if args.smoke_test:
         next_observation, _, _, _, _ = env.step(
             th.zeros(env.n_envs, dtype=th.long, device=env.device),
@@ -153,8 +161,10 @@ def main() -> None:
         foot=FlattenEncoder(),
         body=MLP(dims=[64, 64], func=nn.Tanh),
     ).build(env).to(env.device)
+
     buffer = RolloutBuffer(rollout_steps, env.n_envs, env.device, copy_on_finish=False)
     runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
+
     update = Update(
         transforms=(GAE(gamma=0.99, lambda_=0.95),),
         sampler=RolloutMinibatches(batch_size=args.minibatch_size, epochs=args.epochs),
@@ -176,6 +186,7 @@ def main() -> None:
 
     collections = math.ceil(args.timesteps / args.total_batch_size)
     transitions = collections * args.total_batch_size
+
     gradient_steps = collections * args.epochs * (
         args.total_batch_size // args.minibatch_size
     )
