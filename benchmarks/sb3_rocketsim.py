@@ -21,6 +21,7 @@ from rlgym.rocket_league.state_mutators import (
 
 
 class RocketSimEnv(gym.Env):
+
     metadata = {"render_modes": []}
 
     def __init__(self, frameskip: int = 4, max_ticks: int = 36_000, seed: int = 0):

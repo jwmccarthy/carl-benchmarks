@@ -32,6 +32,7 @@ from actions import carl_lookup_table
 
 
 class LookupCARLEnv:
+
     def __init__(self, env: CARLTorchVectorEnv, seed: int) -> None:
         self.env = env
         self.n_envs = env.n_sim
@@ -81,6 +82,7 @@ class LookupCARLEnv:
 
 
 class FeedForwardCategoricalPolicy(CategoricalPolicy):
+
     def _logits(self, observation: th.Tensor) -> th.Tensor:
         return CompositeNet.forward(self, observation)
 
@@ -99,12 +101,10 @@ def main() -> None:
     parser.add_argument("--n-sim", type=int, default=256)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
-
     parser.add_argument("--timesteps", type=int, default=10_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
-
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--smoke-test", action="store_true")
 
@@ -157,6 +157,7 @@ def main() -> None:
         foot=FlattenEncoder(),
         body=MLP(dims=[64, 64], func=nn.Tanh),
     ).build(env).to(env.device)
+
     critic = Critic(
         foot=FlattenEncoder(),
         body=MLP(dims=[64, 64], func=nn.Tanh),
