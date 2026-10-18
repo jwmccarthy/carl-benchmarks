@@ -23,6 +23,12 @@ uv sync --extra carl
 
 Building CARL requires a CUDA toolkit with `nvcc`. The RocketSim baseline does not require CARL or a CUDA toolkit.
 
+Run the CARL benchmark with the `rlenv` Conda environment after its CARL extension has been rebuilt:
+
+```bash
+conda run -n rlenv python benchmarks/jarl_carl.py --smoke-test --n-sim 256
+```
+
 ## Smoke Tests
 
 ```bash
@@ -55,7 +61,7 @@ uv run python benchmarks/sb3_rocketsim.py --num-envs 16
 Run a CARL smoke test after installing the optional local CARL and JARL dependencies:
 
 ```bash
-uv run --extra carl python benchmarks/jarl_carl.py --smoke-test --n-sim 256
+conda run -n rlenv python benchmarks/jarl_carl.py --smoke-test --n-sim 256
 ```
 
 The CARL runner trains blue against a random lookup-table opponent and uses CARL's native goal reward, matching the RocketSim baseline. It uses the same fixed PPO defaults and timing summary. For the default 32,768-transition total batch:
@@ -68,5 +74,5 @@ The CARL runner trains blue against a random lookup-table opponent and uses CARL
 | 2,048 | 16 |
 
 ```bash
-uv run --extra carl python benchmarks/jarl_carl.py --n-sim 512
+conda run -n rlenv python benchmarks/jarl_carl.py --n-sim 512
 ```

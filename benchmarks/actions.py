@@ -19,7 +19,7 @@ def carl_lookup_table(device: torch.device) -> torch.Tensor:
     def axis(values: np.ndarray) -> np.ndarray:
         if not np.isin(values, (-1, 0, 1)).all():
             raise RuntimeError("lookup axes must use -1, 0, or 1")
-        return values + (values > 0)
+        return np.where(values < 0, 1, np.where(values > 0, 2, 0))
 
     # RLGym: [throttle, steer, pitch, yaw, roll, jump, boost, handbrake].
     # CARL:  [horizontal, vertical, throttle, powerslide, boost, air_roll, jump].
