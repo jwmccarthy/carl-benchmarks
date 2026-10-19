@@ -42,6 +42,8 @@ uv run python benchmarks/sb3_rocketsim.py \
   --num-envs 8 --frameskip 4 --timesteps 1000000
 ```
 
+Add `--gpu` to run SB3's PyTorch policy and PPO updates on CUDA. RocketSim itself remains CPU-based.
+
 The runner holds total samples per PPO collection constant. Its defaults collect 32,768 actor transitions per collection, run 10 epochs of full-batch PPO, and time a requested 1,000,000 transitions. It prints actual transitions, elapsed time, collections, and gradient updates when finished.
 
 Completed runs append one JSON object per line to `results/benchmarks.jsonl`. Override the destination with `--log-file`.
