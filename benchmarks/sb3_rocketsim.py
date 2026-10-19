@@ -4,7 +4,6 @@ from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
-import torch
 import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
@@ -98,7 +97,6 @@ def main() -> None:
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--gpu", action="store_true")
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--smoke-test", action="store_true")
 
@@ -118,11 +116,8 @@ def main() -> None:
         parser.error("--total-batch-size must divide evenly across --num-envs")
     if args.total_batch_size % args.minibatch_size:
         parser.error("--minibatch-size must divide --total-batch-size")
-    if args.gpu and not torch.cuda.is_available():
-        parser.error("--gpu requires an available CUDA device")
 
     rollout_steps = args.total_batch_size // args.num_envs
-    device = "cuda" if args.gpu else "cpu"
 
     def make_env(index: int):
         return lambda: RocketSimEnv(args.frameskip, args.max_ticks, args.seed + index)
@@ -150,14 +145,10 @@ def main() -> None:
         vf_coef=0.5,
         max_grad_norm=0.5,
         policy_kwargs={"net_arch": [64, 64], "activation_fn": nn.Tanh},
-        device=device,
+        device="cpu",
         seed=args.seed,
         verbose=1,
     )
-    policy_device = next(model.policy.parameters()).device
-    if args.gpu and policy_device.type != "cuda":
-        raise RuntimeError(f"SB3 policy is on {policy_device}, expected CUDA")
-
     started = time.perf_counter()
     model.learn(args.timesteps)
     elapsed = time.perf_counter() - started
@@ -176,9 +167,7 @@ def main() -> None:
         "minibatch_size": args.minibatch_size,
         "epochs": args.epochs,
         "seed": args.seed,
-        "device": device,
-        "policy_device": str(policy_device),
-        "gpu_name": torch.cuda.get_device_name(policy_device) if args.gpu else None,
+        "device": "cpu",
         "elapsed_seconds": elapsed,
         "transitions": model.num_timesteps,
         "transitions_per_second": transitions_per_second,

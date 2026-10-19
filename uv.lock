@@ -55,18 +55,22 @@ carl = [
     { name = "carl", extra = ["gymnasium"] },
     { name = "jarl" },
 ]
+jarl = [
+    { name = "jarl" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "carl", extras = ["gymnasium"], marker = "extra == 'carl'", directory = "../CARL" },
     { name = "gymnasium", specifier = ">=1.0" },
     { name = "jarl", marker = "extra == 'carl'", directory = "../JARL" },
+    { name = "jarl", marker = "extra == 'jarl'", directory = "../JARL" },
     { name = "rlgym-rocket-league", extras = ["sim"], specifier = "==2.0.1" },
     { name = "stable-baselines3", specifier = ">=2.9.0" },
     { name = "tensorboard", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
 ]
-provides-extras = ["carl"]
+provides-extras = ["jarl", "carl"]
 
 [[package]]
 name = "cloudpickle"
