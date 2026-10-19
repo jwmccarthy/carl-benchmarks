@@ -210,11 +210,17 @@ def main() -> None:
             section="PPO",
         )
 
+        th.cuda.reset_peak_memory_stats()
         started = time.perf_counter()
         Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(
             args.timesteps
         )
+        th.cuda.synchronize()
         elapsed = time.perf_counter() - started
+
+        peak_allocated_mib = th.cuda.max_memory_allocated() / 2**20
+        peak_reserved_mib = th.cuda.max_memory_reserved() / 2**20
+        allocated_mib = th.cuda.memory_allocated() / 2**20
 
         collections = math.ceil(args.timesteps / args.total_batch_size)
         transitions = collections * args.total_batch_size
@@ -240,13 +246,18 @@ def main() -> None:
                 "transitions_per_second": transitions_per_second,
                 "collections": collections,
                 "gradient_updates": gradient_steps,
+                "peak_allocated_mib": peak_allocated_mib,
+                "peak_reserved_mib": peak_reserved_mib,
+                "allocated_mib": allocated_mib,
             },
         )
 
         print(
             f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
             f"({transitions_per_second:.0f} transitions/s); "
-            f"{collections} collections, {gradient_steps} gradient updates",
+            f"{collections} collections, {gradient_steps} gradient updates; "
+            f"peak VRAM {peak_allocated_mib:.0f} MiB allocated / "
+            f"{peak_reserved_mib:.0f} MiB reserved",
         )
         elapsed_times.append(elapsed)
         throughputs.append(transitions_per_second)
