@@ -121,26 +121,6 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if (
-        min(
-            args.n_sim,
-            args.frameskip,
-            args.max_ticks,
-            args.timesteps,
-            args.total_batch_size,
-            args.minibatch_size,
-            args.epochs,
-            args.runs,
-        )
-        < 1
-    ):
-        parser.error("simulation and training sizes must be positive")
-
-    if args.total_batch_size % args.n_sim:
-        parser.error("--total-batch-size must divide evenly across --n-sim")
-    if args.total_batch_size % args.minibatch_size:
-        parser.error("--minibatch-size must divide --total-batch-size")
-
     rollout_steps = args.total_batch_size // args.n_sim
 
     base = CARLTorchVectorEnv(

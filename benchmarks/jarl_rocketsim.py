@@ -63,28 +63,8 @@ def main() -> None:
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
     parser.add_argument("--smoke-test", action="store_true")
+    
     args = parser.parse_args()
-
-    if (
-        min(
-            args.num_envs,
-            args.frameskip,
-            args.max_ticks,
-            args.timesteps,
-            args.total_batch_size,
-            args.minibatch_size,
-            args.epochs,
-            args.runs,
-        )
-        < 1
-    ):
-        parser.error("environment and training sizes must be positive")
-    if args.total_batch_size % args.num_envs:
-        parser.error("--total-batch-size must divide evenly across --num-envs")
-    if args.total_batch_size % args.minibatch_size:
-        parser.error("--minibatch-size must divide --total-batch-size")
-    if not torch.cuda.is_available():
-        parser.error("JARL RocketSim requires CUDA")
 
     rollout_steps = args.total_batch_size // args.num_envs
 
