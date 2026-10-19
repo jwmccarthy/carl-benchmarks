@@ -15,8 +15,8 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-carl = { path = "../CARL" }
-jarl = { path = "../JARL" }
+carl = { path = "carl" }
+jarl = { path = "jarl" }
 torch = { index = "pytorch-cu128" }
 
 [[tool.uv.index]]

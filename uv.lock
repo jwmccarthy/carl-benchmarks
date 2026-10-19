@@ -14,7 +14,7 @@ wheels = [
 [[package]]
 name = "carl"
 version = "0.1.0"
-source = { directory = "../CARL" }
+source = { directory = "carl" }
 
 [package.optional-dependencies]
 gymnasium = [
@@ -54,9 +54,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "carl", extras = ["gymnasium"], directory = "../CARL" },
+    { name = "carl", extras = ["gymnasium"], directory = "carl" },
     { name = "gymnasium", specifier = ">=1.0" },
-    { name = "jarl", directory = "../JARL" },
+    { name = "jarl", directory = "jarl" },
     { name = "rlgym-rocket-league", extras = ["sim"], specifier = "==2.0.1" },
     { name = "stable-baselines3", specifier = ">=2.9.0" },
     { name = "tensorboard", specifier = ">=2.0" },
@@ -210,7 +210,7 @@ wheels = [
 [[package]]
 name = "jarl"
 version = "0.1.0"
-source = { directory = "../JARL" }
+source = { directory = "jarl" }
 dependencies = [
     { name = "gymnasium" },
     { name = "numpy" },
