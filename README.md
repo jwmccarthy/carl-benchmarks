@@ -52,6 +52,20 @@ The runner holds total samples per PPO collection constant. Its defaults collect
 
 Completed runs append one JSON object per line to `results/benchmarks.jsonl`. Override the destination with `--log-file`.
 
+## Logged Results
+
+The results below use 1,015,808 transitions, 31 PPO collections, 310 gradient updates, a 32,768-transition total/minibatch, 10 epochs, frameskip 4, and seed 0. Repeated CARL configurations are averaged.
+
+| Simulator and learner | Parallelism | Time | Throughput | Speedup vs. SB3 RocketSim |
+| --- | ---: | ---: | ---: | ---: |
+| RocketSim + SB3 PPO (CPU) | 1 environment | 418.91 s | 2,425 transitions/s | 1.0x |
+| RocketSim + JARL PPO (CUDA learner) | 16 environments | 272.18 s | 3,732 transitions/s | 1.5x |
+| CARL + JARL PPO | 256 simulations | 14.57 s | 69,732 transitions/s | 28.8x |
+| CARL + JARL PPO | 1,024 simulations | 6.16 s | 164,824 transitions/s | 68.0x |
+| CARL + JARL PPO | 2,048 simulations | 4.52 s | 224,796 transitions/s | 92.7x |
+
+These are end-to-end throughput measurements. RocketSim and CARL still use different observation layouts, so they are not yet controlled learning-quality results.
+
 For a serial run:
 
 ```bash
