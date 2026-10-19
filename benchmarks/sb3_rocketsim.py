@@ -92,33 +92,33 @@ class RocketSimEnv(gym.Env):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train SB3 PPO in RocketSim")
-    parser.add_argument("--num-envs", type=int, default=1)
+    parser.add_argument("--n-sim", type=int, default=1)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
-    parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
 
-    rollout_steps = args.total_batch_size // args.num_envs
+    rollout_steps = args.total_batch_size // args.n_sim
 
     def make_env(seed: int, index: int):
         return lambda: RocketSimEnv(args.frameskip, args.max_ticks, seed + index)
 
-    env = make_vec_env(make_env(args.seed, 0), n_envs=args.num_envs, seed=args.seed)
+    env = make_vec_env(make_env(args.seed, 0), n_envs=args.n_sim, seed=args.seed)
 
-    if args.smoke_test:
+    if args.test:
         observations = env.reset()
-        observations, _, _, _ = env.step(np.zeros(args.num_envs, dtype=np.int64))
-        print(f"smoke passed: observation {observations.shape}, actions [0, 89]")
+        observations, _, _, _ = env.step(np.zeros(args.n_sim, dtype=np.int64))
+        print(f"test passed: observation {observations.shape}, actions [0, 89]")
         env.close()
         return
 
@@ -127,7 +127,7 @@ def main() -> None:
     throughputs = []
     for run_index in range(args.runs):
         seed = args.seed + run_index
-        env = make_vec_env(make_env(seed, 0), n_envs=args.num_envs, seed=seed)
+        env = make_vec_env(make_env(seed, 0), n_envs=args.n_sim, seed=seed)
         model = PPO(
             "MlpPolicy",
             env,
@@ -158,7 +158,7 @@ def main() -> None:
             args.log_file,
             {
                 "engine": "rocketsim_sb3",
-                "num_envs": args.num_envs,
+                "n_sim": args.n_sim,
                 "frameskip": args.frameskip,
                 "total_batch_size": args.total_batch_size,
                 "minibatch_size": args.minibatch_size,

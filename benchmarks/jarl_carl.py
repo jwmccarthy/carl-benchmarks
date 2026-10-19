@@ -111,13 +111,13 @@ def main() -> None:
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
-    parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
 
@@ -137,13 +137,13 @@ def main() -> None:
 
     observation = env.reset()
 
-    if args.smoke_test:
+    if args.test:
         next_observation, _, _, _, _ = env.step(
             th.zeros(env.n_envs, dtype=th.long, device=env.device),
         )
         if next_observation.shape != observation.shape:
             raise RuntimeError("CARL observation shape changed after a step")
-        print(f"smoke passed: observation {tuple(observation.shape)}, actions [0, 89]")
+        print(f"test passed: observation {tuple(observation.shape)}, actions [0, 89]")
         env.close()
         return
 

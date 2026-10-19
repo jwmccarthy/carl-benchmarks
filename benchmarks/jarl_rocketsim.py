@@ -50,23 +50,23 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in RocketSim")
-    parser.add_argument("--num-envs", type=int, default=1)
+    parser.add_argument("--n-sim", type=int, default=1)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
-    parser.add_argument("--smoke-test", action="store_true")
-    
+    parser.add_argument("--test", action="store_true")
+
     args = parser.parse_args()
 
-    rollout_steps = args.total_batch_size // args.num_envs
+    rollout_steps = args.total_batch_size // args.n_sim
 
     def environment_factory(seed: int):
         environment_index = 0
@@ -83,14 +83,14 @@ def main() -> None:
 
         return make_environment
 
-    env = SyncGymEnv(environment_factory(args.seed), args.num_envs)
+    env = SyncGymEnv(environment_factory(args.seed), args.n_sim)
     observation = env.reset()
 
-    if args.smoke_test:
-        next_observation, _, _, _, _ = env.step(np.zeros(args.num_envs, dtype=np.int64))
+    if args.test:
+        next_observation, _, _, _, _ = env.step(np.zeros(args.n_sim, dtype=np.int64))
         if next_observation.shape != observation.shape:
             raise RuntimeError("RocketSim observation shape changed after a step")
-        print(f"smoke passed: observation {observation.shape}, actions [0, 89]")
+        print(f"test passed: observation {observation.shape}, actions [0, 89]")
         return
 
     device = torch.device("cuda")
@@ -99,7 +99,7 @@ def main() -> None:
     for run_index in range(args.runs):
         seed = args.seed + run_index
         torch.manual_seed(seed)
-        env = SyncGymEnv(environment_factory(seed), args.num_envs)
+        env = SyncGymEnv(environment_factory(seed), args.n_sim)
         policy = (
             FeedForwardCategoricalPolicy(
                 foot=FlattenEncoder(),
@@ -164,7 +164,7 @@ def main() -> None:
             args.log_file,
             {
                 "engine": "rocketsim_jarl",
-                "num_envs": args.num_envs,
+                "n_sim": args.n_sim,
                 "frameskip": args.frameskip,
                 "total_batch_size": args.total_batch_size,
                 "minibatch_size": args.minibatch_size,
