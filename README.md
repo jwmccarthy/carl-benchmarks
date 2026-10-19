@@ -15,11 +15,7 @@ Run the RocketSim baseline:
 uv sync
 ```
 
-CARL and JARL are local optional source dependencies expected at `../CARL` and `../JARL`:
-
-```bash
-uv sync --extra carl
-```
+CARL and JARL are local source dependencies expected at `../CARL` and `../JARL`.
 
 Building CARL requires a CUDA toolkit with `nvcc`. The RocketSim baseline does not require CARL or a CUDA toolkit.
 
@@ -49,7 +45,7 @@ SB3 uses CPU policy and update execution because its vector-environment API exch
 Use JARL to keep RocketSim simulation on CPU while policy inference, rollout storage, and PPO updates use CUDA:
 
 ```bash
-uv run --extra jarl python benchmarks/jarl_rocketsim.py --num-envs 16
+uv run python benchmarks/jarl_rocketsim.py --num-envs 16
 ```
 
 The runner holds total samples per PPO collection constant. Its defaults collect 32,768 actor transitions per collection, run 10 epochs of full-batch PPO, and time a requested 1,000,000 transitions. It prints actual transitions, elapsed time, collections, and gradient updates when finished.
@@ -70,7 +66,7 @@ uv run python benchmarks/sb3_rocketsim.py --num-envs 16
 
 ## CARL
 
-Run a CARL smoke test after installing the optional local CARL and JARL dependencies:
+Run a CARL smoke test:
 
 ```bash
 conda run -n rlenv python benchmarks/jarl_carl.py --smoke-test --n-sim 256

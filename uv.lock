@@ -43,34 +43,25 @@ name = "carl-benchmarks"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "carl", extra = ["gymnasium"] },
     { name = "gymnasium" },
+    { name = "jarl" },
     { name = "rlgym-rocket-league", extra = ["sim"] },
     { name = "stable-baselines3" },
     { name = "tensorboard" },
     { name = "torch" },
 ]
 
-[package.optional-dependencies]
-carl = [
-    { name = "carl", extra = ["gymnasium"] },
-    { name = "jarl" },
-]
-jarl = [
-    { name = "jarl" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "carl", extras = ["gymnasium"], marker = "extra == 'carl'", directory = "../CARL" },
+    { name = "carl", extras = ["gymnasium"], directory = "../CARL" },
     { name = "gymnasium", specifier = ">=1.0" },
-    { name = "jarl", marker = "extra == 'carl'", directory = "../JARL" },
-    { name = "jarl", marker = "extra == 'jarl'", directory = "../JARL" },
+    { name = "jarl", directory = "../JARL" },
     { name = "rlgym-rocket-league", extras = ["sim"], specifier = "==2.0.1" },
     { name = "stable-baselines3", specifier = ">=2.9.0" },
     { name = "tensorboard", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
 ]
-provides-extras = ["jarl", "carl"]
 
 [[package]]
 name = "cloudpickle"

@@ -5,18 +5,13 @@ description = "Matched PPO benchmarks for CARL and RLGym RocketSim"
 readme = "README.md"
 requires-python = "==3.11.*"
 dependencies = [
+    "carl[gymnasium]",
     "gymnasium>=1.0",
+    "jarl",
     "rlgym-rocket-league[sim]==2.0.1",
     "stable-baselines3>=2.9.0",
     "tensorboard>=2.0",
     "torch>=2.7",
-]
-
-[project.optional-dependencies]
-jarl = ["jarl"]
-carl = [
-    "carl[gymnasium]",
-    "jarl",
 ]
 
 [tool.uv.sources]
