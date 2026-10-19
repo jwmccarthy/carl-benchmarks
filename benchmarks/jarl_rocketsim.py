@@ -1,5 +1,6 @@
 import argparse
 import math
+import statistics
 import time
 from pathlib import Path
 
@@ -57,6 +58,7 @@ def main() -> None:
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--smoke-test", action="store_true")
     args = parser.parse_args()
@@ -69,6 +71,7 @@ def main() -> None:
         args.total_batch_size,
         args.minibatch_size,
         args.epochs,
+        args.runs,
     ) < 1:
         parser.error("environment and training sizes must be positive")
     if args.total_batch_size % args.num_envs:
@@ -78,21 +81,22 @@ def main() -> None:
     if not torch.cuda.is_available():
         parser.error("JARL RocketSim requires CUDA")
 
-    torch.manual_seed(args.seed)
     rollout_steps = args.total_batch_size // args.num_envs
-    environment_index = 0
 
-    def make_environment():
-        nonlocal environment_index
-        environment = RocketSimEnv(
-            args.frameskip,
-            args.max_ticks,
-            args.seed + environment_index,
-        )
-        environment_index += 1
-        return environment
+    def environment_factory(seed: int):
+        environment_index = 0
 
-    env = SyncGymEnv(make_environment, args.num_envs)
+        def make_environment():
+            nonlocal environment_index
+            environment = RocketSimEnv(
+                args.frameskip, args.max_ticks, seed + environment_index,
+            )
+            environment_index += 1
+            return environment
+
+        return make_environment
+
+    env = SyncGymEnv(environment_factory(args.seed), args.num_envs)
     observation = env.reset()
 
     if args.smoke_test:
@@ -103,26 +107,32 @@ def main() -> None:
         return
 
     device = torch.device("cuda")
-    policy = FeedForwardCategoricalPolicy(
+    elapsed_times = []
+    throughputs = []
+    for run_index in range(args.runs):
+        seed = args.seed + run_index
+        torch.manual_seed(seed)
+        env = SyncGymEnv(environment_factory(seed), args.num_envs)
+        policy = FeedForwardCategoricalPolicy(
         foot=FlattenEncoder(),
         body=MLP(
             dims=[64, 64],
             func=nn.Tanh,
             out_init_func=orthogonal_init(std=0.01),
         ),
-    ).build(env).to(device)
-    critic = Critic(
+        ).build(env).to(device)
+        critic = Critic(
         foot=FlattenEncoder(),
         body=MLP(
             dims=[64, 64],
             func=nn.Tanh,
             out_init_func=orthogonal_init(std=1.0),
         ),
-    ).build(env).to(device)
+        ).build(env).to(device)
 
-    buffer = RolloutBuffer(rollout_steps, env.n_envs, device, copy_on_finish=False)
-    runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
-    update = Update(
+        buffer = RolloutBuffer(rollout_steps, env.n_envs, device, copy_on_finish=False)
+        runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
+        update = Update(
         transforms=(GAE(gamma=0.99, lambda_=0.95),),
         sampler=RolloutMinibatches(batch_size=args.minibatch_size, epochs=args.epochs),
         loss=PPOLoss(
@@ -136,27 +146,28 @@ def main() -> None:
             max_grad_norm=0.5,
         ),
         section="PPO",
-    )
+        )
 
-    started = time.perf_counter()
-    Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
-    elapsed = time.perf_counter() - started
+        started = time.perf_counter()
+        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
+        elapsed = time.perf_counter() - started
 
-    collections = math.ceil(args.timesteps / args.total_batch_size)
-    transitions = collections * args.total_batch_size
-    gradient_updates = collections * args.epochs * (
+        collections = math.ceil(args.timesteps / args.total_batch_size)
+        transitions = collections * args.total_batch_size
+        gradient_updates = collections * args.epochs * (
         args.total_batch_size // args.minibatch_size
-    )
-    transitions_per_second = transitions / elapsed
+        )
+        transitions_per_second = transitions / elapsed
 
-    append_result(args.log_file, {
+        append_result(args.log_file, {
         "engine": "rocketsim_jarl",
         "num_envs": args.num_envs,
         "frameskip": args.frameskip,
         "total_batch_size": args.total_batch_size,
         "minibatch_size": args.minibatch_size,
         "epochs": args.epochs,
-        "seed": args.seed,
+        "seed": seed,
+        "run_index": run_index,
         "device": str(device),
         "gpu_name": torch.cuda.get_device_name(device),
         "elapsed_seconds": elapsed,
@@ -164,12 +175,22 @@ def main() -> None:
         "transitions_per_second": transitions_per_second,
         "collections": collections,
         "gradient_updates": gradient_updates,
-    })
+        })
 
-    print(
-        f"completed {transitions} transitions in {elapsed:.2f}s "
+        print(
+        f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
         f"({transitions_per_second:.0f} transitions/s); "
         f"{collections} collections, {gradient_updates} gradient updates",
+        )
+        elapsed_times.append(elapsed)
+        throughputs.append(transitions_per_second)
+
+    elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
+    throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
+    print(
+        f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
+        f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "
+        f"+/- {throughput_stdev:.0f} transitions/s",
     )
 
 

@@ -50,7 +50,7 @@ uv run python benchmarks/jarl_rocketsim.py --num-envs 16
 
 The runner holds total samples per PPO collection constant. Its defaults collect 32,768 actor transitions per collection, run 10 epochs of full-batch PPO, and time a requested 1,000,000 transitions. It prints actual transitions, elapsed time, collections, and gradient updates when finished.
 
-Completed runs append one JSON object per line to `results/benchmarks.jsonl`. Override the destination with `--log-file`.
+By default, each benchmark runs five consecutive seeds and appends one JSON object per completed run to `results/benchmarks.jsonl`. Use `--runs 1` for a single run, and override the destination with `--log-file`.
 
 For a serial run:
 

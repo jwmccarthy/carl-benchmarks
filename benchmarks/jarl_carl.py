@@ -1,5 +1,6 @@
 import argparse
 import math
+import statistics
 import time
 from pathlib import Path
 
@@ -108,6 +109,7 @@ def main() -> None:
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--smoke-test", action="store_true")
 
@@ -121,6 +123,7 @@ def main() -> None:
         args.total_batch_size,
         args.minibatch_size,
         args.epochs,
+        args.runs,
     ) < 1:
         parser.error("simulation and training sizes must be positive")
 
@@ -129,7 +132,6 @@ def main() -> None:
     if args.total_batch_size % args.minibatch_size:
         parser.error("--minibatch-size must divide --total-batch-size")
 
-    th.manual_seed(args.seed)
     rollout_steps = args.total_batch_size // args.n_sim
 
     base = CARLTorchVectorEnv(
@@ -156,20 +158,32 @@ def main() -> None:
         env.close()
         return
 
-    policy = FeedForwardCategoricalPolicy(
+    env.close()
+    elapsed_times = []
+    throughputs = []
+    for run_index in range(args.runs):
+        seed = args.seed + run_index
+        th.manual_seed(seed)
+        base = CARLTorchVectorEnv(
+            n_sim=args.n_sim, n_blue=1, n_orange=1, seed=seed,
+            frameskip=args.frameskip, max_ticks=args.max_ticks, normalize=True,
+            discrete_actions=True,
+        )
+        env = LookupCARLEnv(base, seed)
+        policy = FeedForwardCategoricalPolicy(
         foot=FlattenEncoder(),
         body=MLP(dims=[64, 64], func=nn.Tanh),
-    ).build(env).to(env.device)
+        ).build(env).to(env.device)
 
-    critic = Critic(
+        critic = Critic(
         foot=FlattenEncoder(),
         body=MLP(dims=[64, 64], func=nn.Tanh),
-    ).build(env).to(env.device)
+        ).build(env).to(env.device)
 
-    buffer = RolloutBuffer(rollout_steps, env.n_envs, env.device, copy_on_finish=False)
-    runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
+        buffer = RolloutBuffer(rollout_steps, env.n_envs, env.device, copy_on_finish=False)
+        runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
 
-    update = Update(
+        update = Update(
         transforms=(GAE(gamma=0.99, lambda_=0.95),),
         sampler=RolloutMinibatches(batch_size=args.minibatch_size, epochs=args.epochs),
         loss=PPOLoss(
@@ -184,26 +198,27 @@ def main() -> None:
         section="PPO",
     )
 
-    started = time.perf_counter()
-    Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
-    elapsed = time.perf_counter() - started
+        started = time.perf_counter()
+        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
+        elapsed = time.perf_counter() - started
 
-    collections = math.ceil(args.timesteps / args.total_batch_size)
-    transitions = collections * args.total_batch_size
+        collections = math.ceil(args.timesteps / args.total_batch_size)
+        transitions = collections * args.total_batch_size
 
-    gradient_steps = collections * args.epochs * (
+        gradient_steps = collections * args.epochs * (
         args.total_batch_size // args.minibatch_size
     )
-    transitions_per_second = transitions / elapsed
+        transitions_per_second = transitions / elapsed
 
-    append_result(args.log_file, {
+        append_result(args.log_file, {
         "engine": "carl_jarl",
         "n_sim": args.n_sim,
         "frameskip": args.frameskip,
         "total_batch_size": args.total_batch_size,
         "minibatch_size": args.minibatch_size,
         "epochs": args.epochs,
-        "seed": args.seed,
+        "seed": seed,
+        "run_index": run_index,
         "elapsed_seconds": elapsed,
         "transitions": transitions,
         "transitions_per_second": transitions_per_second,
@@ -211,12 +226,22 @@ def main() -> None:
         "gradient_updates": gradient_steps,
     })
 
-    print(
-        f"completed {transitions} transitions in {elapsed:.2f}s "
+        print(
+        f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
         f"({transitions_per_second:.0f} transitions/s); "
         f"{collections} collections, {gradient_steps} gradient updates",
     )
-    env.close()
+        elapsed_times.append(elapsed)
+        throughputs.append(transitions_per_second)
+        env.close()
+
+    elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
+    throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
+    print(
+        f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
+        f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "
+        f"+/- {throughput_stdev:.0f} transitions/s",
+    )
 
 
 if __name__ == "__main__":
