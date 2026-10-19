@@ -24,10 +24,18 @@ def carl_lookup_table(device: torch.device) -> torch.Tensor:
     # RLGym: [throttle, steer, pitch, yaw, roll, jump, boost, handbrake].
     # CARL:  [horizontal, vertical, throttle, powerslide, boost, air_roll, jump].
     return torch.as_tensor(
-        np.stack((
-            axis(table[:, 1]), axis(table[:, 2]), axis(table[:, 0]),
-            table[:, 7], table[:, 6], axis(table[:, 4]), table[:, 5],
-        ), axis=-1),
+        np.stack(
+            (
+                axis(table[:, 1]),
+                axis(table[:, 2]),
+                axis(table[:, 0]),
+                table[:, 7],
+                table[:, 6],
+                axis(table[:, 4]),
+                table[:, 5],
+            ),
+            axis=-1,
+        ),
         dtype=torch.int32,
         device=device,
     )

@@ -59,20 +59,25 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
+    parser.add_argument(
+        "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
+    )
     parser.add_argument("--smoke-test", action="store_true")
     args = parser.parse_args()
 
-    if min(
-        args.num_envs,
-        args.frameskip,
-        args.max_ticks,
-        args.timesteps,
-        args.total_batch_size,
-        args.minibatch_size,
-        args.epochs,
-        args.runs,
-    ) < 1:
+    if (
+        min(
+            args.num_envs,
+            args.frameskip,
+            args.max_ticks,
+            args.timesteps,
+            args.total_batch_size,
+            args.minibatch_size,
+            args.epochs,
+            args.runs,
+        )
+        < 1
+    ):
         parser.error("environment and training sizes must be positive")
     if args.total_batch_size % args.num_envs:
         parser.error("--total-batch-size must divide evenly across --num-envs")
@@ -89,7 +94,9 @@ def main() -> None:
         def make_environment():
             nonlocal environment_index
             environment = RocketSimEnv(
-                args.frameskip, args.max_ticks, seed + environment_index,
+                args.frameskip,
+                args.max_ticks,
+                seed + environment_index,
             )
             environment_index += 1
             return environment
@@ -113,74 +120,91 @@ def main() -> None:
         seed = args.seed + run_index
         torch.manual_seed(seed)
         env = SyncGymEnv(environment_factory(seed), args.num_envs)
-        policy = FeedForwardCategoricalPolicy(
-        foot=FlattenEncoder(),
-        body=MLP(
-            dims=[64, 64],
-            func=nn.Tanh,
-            out_init_func=orthogonal_init(std=0.01),
-        ),
-        ).build(env).to(device)
-        critic = Critic(
-        foot=FlattenEncoder(),
-        body=MLP(
-            dims=[64, 64],
-            func=nn.Tanh,
-            out_init_func=orthogonal_init(std=1.0),
-        ),
-        ).build(env).to(device)
+        policy = (
+            FeedForwardCategoricalPolicy(
+                foot=FlattenEncoder(),
+                body=MLP(
+                    dims=[64, 64],
+                    func=nn.Tanh,
+                    out_init_func=orthogonal_init(std=0.01),
+                ),
+            )
+            .build(env)
+            .to(device)
+        )
+        critic = (
+            Critic(
+                foot=FlattenEncoder(),
+                body=MLP(
+                    dims=[64, 64],
+                    func=nn.Tanh,
+                    out_init_func=orthogonal_init(std=1.0),
+                ),
+            )
+            .build(env)
+            .to(device)
+        )
 
         buffer = RolloutBuffer(rollout_steps, env.n_envs, device, copy_on_finish=False)
-        runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
+        runner = Runner(
+            env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic))
+        )
         update = Update(
-        transforms=(GAE(gamma=0.99, lambda_=0.95),),
-        sampler=RolloutMinibatches(batch_size=args.minibatch_size, epochs=args.epochs),
-        loss=PPOLoss(
-            policy,
-            critic,
-            PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
-        ),
-        optimizer_step=OptimizerStep(
-            (policy, critic),
-            Adam((*policy.parameters(), *critic.parameters()), lr=3e-4),
-            max_grad_norm=0.5,
-        ),
-        section="PPO",
+            transforms=(GAE(gamma=0.99, lambda_=0.95),),
+            sampler=RolloutMinibatches(
+                batch_size=args.minibatch_size, epochs=args.epochs
+            ),
+            loss=PPOLoss(
+                policy,
+                critic,
+                PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
+            ),
+            optimizer_step=OptimizerStep(
+                (policy, critic),
+                Adam((*policy.parameters(), *critic.parameters()), lr=3e-4),
+                max_grad_norm=0.5,
+            ),
+            section="PPO",
         )
 
         started = time.perf_counter()
-        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
+        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(
+            args.timesteps
+        )
         elapsed = time.perf_counter() - started
 
         collections = math.ceil(args.timesteps / args.total_batch_size)
         transitions = collections * args.total_batch_size
-        gradient_updates = collections * args.epochs * (
-        args.total_batch_size // args.minibatch_size
+        gradient_updates = (
+            collections * args.epochs * (args.total_batch_size // args.minibatch_size)
         )
         transitions_per_second = transitions / elapsed
 
-        append_result(args.log_file, {
-        "engine": "rocketsim_jarl",
-        "num_envs": args.num_envs,
-        "frameskip": args.frameskip,
-        "total_batch_size": args.total_batch_size,
-        "minibatch_size": args.minibatch_size,
-        "epochs": args.epochs,
-        "seed": seed,
-        "run_index": run_index,
-        "device": str(device),
-        "gpu_name": torch.cuda.get_device_name(device),
-        "elapsed_seconds": elapsed,
-        "transitions": transitions,
-        "transitions_per_second": transitions_per_second,
-        "collections": collections,
-        "gradient_updates": gradient_updates,
-        })
+        append_result(
+            args.log_file,
+            {
+                "engine": "rocketsim_jarl",
+                "num_envs": args.num_envs,
+                "frameskip": args.frameskip,
+                "total_batch_size": args.total_batch_size,
+                "minibatch_size": args.minibatch_size,
+                "epochs": args.epochs,
+                "seed": seed,
+                "run_index": run_index,
+                "device": str(device),
+                "gpu_name": torch.cuda.get_device_name(device),
+                "elapsed_seconds": elapsed,
+                "transitions": transitions,
+                "transitions_per_second": transitions_per_second,
+                "collections": collections,
+                "gradient_updates": gradient_updates,
+            },
+        )
 
         print(
-        f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
-        f"({transitions_per_second:.0f} transitions/s); "
-        f"{collections} collections, {gradient_updates} gradient updates",
+            f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
+            f"({transitions_per_second:.0f} transitions/s); "
+            f"{collections} collections, {gradient_updates} gradient updates",
         )
         elapsed_times.append(elapsed)
         throughputs.append(transitions_per_second)

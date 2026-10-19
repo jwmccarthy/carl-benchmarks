@@ -57,7 +57,9 @@ class LookupCARLEnv:
     def step(self, action):
         action = th.as_tensor(action, dtype=th.long, device=self.device).reshape(-1)
         if action.shape != (self.n_envs,):
-            raise ValueError(f"expected {self.n_envs} action IDs, got {tuple(action.shape)}")
+            raise ValueError(
+                f"expected {self.n_envs} action IDs, got {tuple(action.shape)}"
+            )
         if ((action < 0) | (action >= 90)).any():
             raise ValueError("action IDs must be in [0, 89]")
 
@@ -71,7 +73,9 @@ class LookupCARLEnv:
         actions[self.blue_indices] = action
         actions[self.orange_indices] = opponent
 
-        observation, reward, terminated, truncated, _ = self.env.step(self.lookup[actions])
+        observation, reward, terminated, truncated, _ = self.env.step(
+            self.lookup[actions]
+        )
         return (
             observation[self.blue_indices],
             reward[self.blue_indices],
@@ -110,21 +114,26 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
+    parser.add_argument(
+        "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
+    )
     parser.add_argument("--smoke-test", action="store_true")
 
     args = parser.parse_args()
 
-    if min(
-        args.n_sim,
-        args.frameskip,
-        args.max_ticks,
-        args.timesteps,
-        args.total_batch_size,
-        args.minibatch_size,
-        args.epochs,
-        args.runs,
-    ) < 1:
+    if (
+        min(
+            args.n_sim,
+            args.frameskip,
+            args.max_ticks,
+            args.timesteps,
+            args.total_batch_size,
+            args.minibatch_size,
+            args.epochs,
+            args.runs,
+        )
+        < 1
+    ):
         parser.error("simulation and training sizes must be positive")
 
     if args.total_batch_size % args.n_sim:
@@ -165,72 +174,100 @@ def main() -> None:
         seed = args.seed + run_index
         th.manual_seed(seed)
         base = CARLTorchVectorEnv(
-            n_sim=args.n_sim, n_blue=1, n_orange=1, seed=seed,
-            frameskip=args.frameskip, max_ticks=args.max_ticks, normalize=True,
+            n_sim=args.n_sim,
+            n_blue=1,
+            n_orange=1,
+            seed=seed,
+            frameskip=args.frameskip,
+            max_ticks=args.max_ticks,
+            normalize=True,
             discrete_actions=True,
         )
         env = LookupCARLEnv(base, seed)
-        policy = FeedForwardCategoricalPolicy(
-        foot=FlattenEncoder(),
-        body=MLP(dims=[64, 64], func=nn.Tanh),
-        ).build(env).to(env.device)
+        policy = (
+            FeedForwardCategoricalPolicy(
+                foot=FlattenEncoder(),
+                body=MLP(dims=[64, 64], func=nn.Tanh),
+            )
+            .build(env)
+            .to(env.device)
+        )
 
-        critic = Critic(
-        foot=FlattenEncoder(),
-        body=MLP(dims=[64, 64], func=nn.Tanh),
-        ).build(env).to(env.device)
+        critic = (
+            Critic(
+                foot=FlattenEncoder(),
+                body=MLP(dims=[64, 64], func=nn.Tanh),
+            )
+            .build(env)
+            .to(env.device)
+        )
 
-        buffer = RolloutBuffer(rollout_steps, env.n_envs, env.device, copy_on_finish=False)
-        runner = Runner(env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)))
+        buffer = RolloutBuffer(
+            rollout_steps, env.n_envs, env.device, copy_on_finish=False
+        )
+        runner = Runner(
+            env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic))
+        )
 
         update = Update(
-        transforms=(GAE(gamma=0.99, lambda_=0.95),),
-        sampler=RolloutMinibatches(batch_size=args.minibatch_size, epochs=args.epochs),
-        loss=PPOLoss(
-            policy,
-            critic,
-            PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
-        ),
-        optimizer_step=IndependentOptimizerSteps(
-            OptimizerStep(policy, Adam(policy.parameters(), lr=3e-4), max_grad_norm=0.5),
-            OptimizerStep(critic, Adam(critic.parameters(), lr=3e-4), max_grad_norm=0.5),
-        ),
-        section="PPO",
-    )
+            transforms=(GAE(gamma=0.99, lambda_=0.95),),
+            sampler=RolloutMinibatches(
+                batch_size=args.minibatch_size, epochs=args.epochs
+            ),
+            loss=PPOLoss(
+                policy,
+                critic,
+                PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
+            ),
+            optimizer_step=IndependentOptimizerSteps(
+                OptimizerStep(
+                    policy, Adam(policy.parameters(), lr=3e-4), max_grad_norm=0.5
+                ),
+                OptimizerStep(
+                    critic, Adam(critic.parameters(), lr=3e-4), max_grad_norm=0.5
+                ),
+            ),
+            section="PPO",
+        )
 
         started = time.perf_counter()
-        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(args.timesteps)
+        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(
+            args.timesteps
+        )
         elapsed = time.perf_counter() - started
 
         collections = math.ceil(args.timesteps / args.total_batch_size)
         transitions = collections * args.total_batch_size
 
-        gradient_steps = collections * args.epochs * (
-        args.total_batch_size // args.minibatch_size
-    )
+        gradient_steps = (
+            collections * args.epochs * (args.total_batch_size // args.minibatch_size)
+        )
         transitions_per_second = transitions / elapsed
 
-        append_result(args.log_file, {
-        "engine": "carl_jarl",
-        "n_sim": args.n_sim,
-        "frameskip": args.frameskip,
-        "total_batch_size": args.total_batch_size,
-        "minibatch_size": args.minibatch_size,
-        "epochs": args.epochs,
-        "seed": seed,
-        "run_index": run_index,
-        "elapsed_seconds": elapsed,
-        "transitions": transitions,
-        "transitions_per_second": transitions_per_second,
-        "collections": collections,
-        "gradient_updates": gradient_steps,
-    })
+        append_result(
+            args.log_file,
+            {
+                "engine": "carl_jarl",
+                "n_sim": args.n_sim,
+                "frameskip": args.frameskip,
+                "total_batch_size": args.total_batch_size,
+                "minibatch_size": args.minibatch_size,
+                "epochs": args.epochs,
+                "seed": seed,
+                "run_index": run_index,
+                "elapsed_seconds": elapsed,
+                "transitions": transitions,
+                "transitions_per_second": transitions_per_second,
+                "collections": collections,
+                "gradient_updates": gradient_steps,
+            },
+        )
 
         print(
-        f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
-        f"({transitions_per_second:.0f} transitions/s); "
-        f"{collections} collections, {gradient_steps} gradient updates",
-    )
+            f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
+            f"({transitions_per_second:.0f} transitions/s); "
+            f"{collections} collections, {gradient_steps} gradient updates",
+        )
         elapsed_times.append(elapsed)
         throughputs.append(transitions_per_second)
         env.close()

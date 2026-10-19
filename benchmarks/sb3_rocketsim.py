@@ -34,7 +34,8 @@ class RocketSimEnv(gym.Env):
 
         self.env = RLGym(
             state_mutator=MutatorSequence(
-                FixedTeamSizeMutator(1, 1), KickoffMutator(),
+                FixedTeamSizeMutator(1, 1),
+                KickoffMutator(),
             ),
             obs_builder=DefaultObs(),
             action_parser=RepeatAction(LookupTableAction(), repeats=frameskip),
@@ -70,7 +71,8 @@ class RocketSimEnv(gym.Env):
         actions = {
             self.player: np.asarray([action], dtype=np.int64),
             self.opponent: np.asarray(
-                [self.rng.integers(self.action_space.n)], dtype=np.int64,
+                [self.rng.integers(self.action_space.n)],
+                dtype=np.int64,
             ),
         }
 
@@ -99,21 +101,26 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
+    parser.add_argument(
+        "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
+    )
     parser.add_argument("--smoke-test", action="store_true")
 
     args = parser.parse_args()
 
-    if min(
-        args.num_envs,
-        args.frameskip,
-        args.max_ticks,
-        args.timesteps,
-        args.total_batch_size,
-        args.minibatch_size,
-        args.epochs,
-        args.runs,
-    ) < 1:
+    if (
+        min(
+            args.num_envs,
+            args.frameskip,
+            args.max_ticks,
+            args.timesteps,
+            args.total_batch_size,
+            args.minibatch_size,
+            args.epochs,
+            args.runs,
+        )
+        < 1
+    ):
         parser.error("environment and training sizes must be positive")
     if args.total_batch_size % args.num_envs:
         parser.error("--total-batch-size must divide evenly across --num-envs")
@@ -141,29 +148,50 @@ def main() -> None:
         seed = args.seed + run_index
         env = make_vec_env(make_env(seed, 0), n_envs=args.num_envs, seed=seed)
         model = PPO(
-            "MlpPolicy", env, n_steps=rollout_steps, batch_size=args.minibatch_size,
-            n_epochs=args.epochs, learning_rate=3e-4, gamma=0.99, gae_lambda=0.95,
-            clip_range=0.2, ent_coef=0.0, vf_coef=0.5, max_grad_norm=0.5,
+            "MlpPolicy",
+            env,
+            n_steps=rollout_steps,
+            batch_size=args.minibatch_size,
+            n_epochs=args.epochs,
+            learning_rate=3e-4,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=0.0,
+            vf_coef=0.5,
+            max_grad_norm=0.5,
             policy_kwargs={"net_arch": [64, 64], "activation_fn": nn.Tanh},
-            device="cpu", seed=seed, verbose=1,
+            device="cpu",
+            seed=seed,
+            verbose=1,
         )
         started = time.perf_counter()
         model.learn(args.timesteps)
         elapsed = time.perf_counter() - started
         collections = model.num_timesteps // args.total_batch_size
-        gradient_steps = collections * args.epochs * (
-            args.total_batch_size // args.minibatch_size
+        gradient_steps = (
+            collections * args.epochs * (args.total_batch_size // args.minibatch_size)
         )
         transitions_per_second = model.num_timesteps / elapsed
-        append_result(args.log_file, {
-            "engine": "rocketsim_sb3", "num_envs": args.num_envs,
-            "frameskip": args.frameskip, "total_batch_size": args.total_batch_size,
-            "minibatch_size": args.minibatch_size, "epochs": args.epochs,
-            "seed": seed, "run_index": run_index, "device": "cpu",
-            "elapsed_seconds": elapsed, "transitions": model.num_timesteps,
-            "transitions_per_second": transitions_per_second,
-            "collections": collections, "gradient_updates": gradient_steps,
-        })
+        append_result(
+            args.log_file,
+            {
+                "engine": "rocketsim_sb3",
+                "num_envs": args.num_envs,
+                "frameskip": args.frameskip,
+                "total_batch_size": args.total_batch_size,
+                "minibatch_size": args.minibatch_size,
+                "epochs": args.epochs,
+                "seed": seed,
+                "run_index": run_index,
+                "device": "cpu",
+                "elapsed_seconds": elapsed,
+                "transitions": model.num_timesteps,
+                "transitions_per_second": transitions_per_second,
+                "collections": collections,
+                "gradient_updates": gradient_steps,
+            },
+        )
         print(
             f"run {run_index}: completed {model.num_timesteps} transitions in {elapsed:.2f}s "
             f"({transitions_per_second:.0f} transitions/s); "
