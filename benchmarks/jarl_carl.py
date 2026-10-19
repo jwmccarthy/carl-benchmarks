@@ -105,7 +105,7 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in CARL")
-    parser.add_argument("--n-sim", type=int, default=256)
+    parser.add_argument("--n-sim", type=int, default=1024)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)

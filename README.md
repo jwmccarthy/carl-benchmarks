@@ -35,7 +35,7 @@ uv run python benchmarks/jarl_carl.py --n-sim 1024
 
 | Argument | RocketSim default | CARL default |
 | --- | ---: | ---: |
-| `--n-sim` | 1 | 256 |
+| `--n-sim` | 1 | 1,024 |
 | `--frameskip` | 4 | 4 |
 | `--max-ticks` | 36,000 | 36,000 |
 | `--timesteps` | 1,000,000 | 1,000,000 |
