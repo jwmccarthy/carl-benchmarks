@@ -1,6 +1,7 @@
 import argparse
 import math
 import time
+from pathlib import Path
 
 import gymnasium as gym
 import torch as th
@@ -29,6 +30,7 @@ from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
 from actions import carl_lookup_table
+from results import append_result
 
 
 class LookupCARLEnv:
@@ -101,11 +103,12 @@ def main() -> None:
     parser.add_argument("--n-sim", type=int, default=256)
     parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
-    parser.add_argument("--timesteps", type=int, default=10_000_000)
+    parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--smoke-test", action="store_true")
 
     args = parser.parse_args()
@@ -191,9 +194,26 @@ def main() -> None:
     gradient_steps = collections * args.epochs * (
         args.total_batch_size // args.minibatch_size
     )
+    transitions_per_second = transitions / elapsed
+
+    append_result(args.log_file, {
+        "engine": "carl_jarl",
+        "n_sim": args.n_sim,
+        "frameskip": args.frameskip,
+        "total_batch_size": args.total_batch_size,
+        "minibatch_size": args.minibatch_size,
+        "epochs": args.epochs,
+        "seed": args.seed,
+        "elapsed_seconds": elapsed,
+        "transitions": transitions,
+        "transitions_per_second": transitions_per_second,
+        "collections": collections,
+        "gradient_updates": gradient_steps,
+    })
+
     print(
         f"completed {transitions} transitions in {elapsed:.2f}s "
-        f"({transitions / elapsed:.0f} transitions/s); "
+        f"({transitions_per_second:.0f} transitions/s); "
         f"{collections} collections, {gradient_steps} gradient updates",
     )
     env.close()
