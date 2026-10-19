@@ -12,7 +12,6 @@ from jarl.collect import CriticCapture, LogProbCapture, Runner
 from jarl.envs.gym import SyncGymEnv
 from jarl.learn import (
     Algorithm,
-    IndependentOptimizerSteps,
     OptimizerStep,
     PPOConfig,
     PPOLoss,
@@ -21,6 +20,7 @@ from jarl.learn import (
 from jarl.modules import MLP
 from jarl.modules.base import CompositeNet
 from jarl.modules.encoder import FlattenEncoder
+from jarl.modules.layer import orthogonal_init
 from jarl.modules.operator import Critic
 from jarl.modules.policy import CategoricalPolicy
 from jarl.runtime import OnPolicySchedule, Trainer
@@ -105,11 +105,19 @@ def main() -> None:
     device = torch.device("cuda")
     policy = FeedForwardCategoricalPolicy(
         foot=FlattenEncoder(),
-        body=MLP(dims=[64, 64], func=nn.Tanh),
+        body=MLP(
+            dims=[64, 64],
+            func=nn.Tanh,
+            out_init_func=orthogonal_init(std=0.01),
+        ),
     ).build(env).to(device)
     critic = Critic(
         foot=FlattenEncoder(),
-        body=MLP(dims=[64, 64], func=nn.Tanh),
+        body=MLP(
+            dims=[64, 64],
+            func=nn.Tanh,
+            out_init_func=orthogonal_init(std=1.0),
+        ),
     ).build(env).to(device)
 
     buffer = RolloutBuffer(rollout_steps, env.n_envs, device, copy_on_finish=False)
@@ -122,9 +130,10 @@ def main() -> None:
             critic,
             PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
         ),
-        optimizer_step=IndependentOptimizerSteps(
-            OptimizerStep(policy, Adam(policy.parameters(), lr=3e-4), max_grad_norm=0.5),
-            OptimizerStep(critic, Adam(critic.parameters(), lr=3e-4), max_grad_norm=0.5),
+        optimizer_step=OptimizerStep(
+            (policy, critic),
+            Adam((*policy.parameters(), *critic.parameters()), lr=3e-4),
+            max_grad_norm=0.5,
         ),
         section="PPO",
     )
