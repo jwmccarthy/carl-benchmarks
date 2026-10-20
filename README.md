@@ -21,7 +21,6 @@ Verify each benchmark:
 
 ```bash
 uv run python benchmarks/sb3_rocketsim.py --test
-uv run python benchmarks/jarl_rocketsim.py --test
 uv run python benchmarks/jarl_carl.py --test --n-sim 256
 ```
 
@@ -29,7 +28,6 @@ Run five seeded measurements by default:
 
 ```bash
 uv run python benchmarks/sb3_rocketsim.py --n-sim 1
-uv run python benchmarks/jarl_rocketsim.py --n-sim 16
 uv run python benchmarks/jarl_carl.py --n-sim 1024
 ```
 
