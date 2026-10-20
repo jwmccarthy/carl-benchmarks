@@ -1,8 +1,11 @@
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import torch as th
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from benchmarks.results import append_result
 from benchmarks.rl.jarl_carl import LookupCARLEnv
@@ -29,16 +32,21 @@ def main() -> None:
     env = LookupCARLEnv(base, args.seed)
     env.reset()
     started = time.perf_counter()
+
     for _ in range(args.steps):
         _, _, terminated, truncated, _ = env.step(
             th.randint(90, (args.n_sim,), device=env.device)
         )
         if (terminated | truncated).any():
             env.reset()
+
     elapsed = time.perf_counter() - started
+
     env.close()
+
     transitions = args.steps * args.n_sim
     steps_per_second = transitions / elapsed
+
     append_result(
         args.log_file,
         {

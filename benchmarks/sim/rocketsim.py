@@ -1,8 +1,11 @@
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from benchmarks.results import append_result
 from benchmarks.rl.sb3_rocketsim import RocketSimEnv
@@ -20,15 +23,20 @@ def main() -> None:
     observation, _ = env.reset(seed=args.seed)
     rng = np.random.default_rng(args.seed)
     started = time.perf_counter()
+
     for _ in range(args.steps):
         observation, _, terminated, truncated, _ = env.step(
             rng.integers(env.action_space.n)
         )
         if terminated or truncated:
             observation, _ = env.reset()
+
     elapsed = time.perf_counter() - started
+
     env.close()
+
     steps_per_second = args.steps / elapsed
+
     append_result(
         args.log_file,
         {
