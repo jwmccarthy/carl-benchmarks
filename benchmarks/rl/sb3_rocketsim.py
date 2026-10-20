@@ -8,12 +8,12 @@ import numpy as np
 import torch.nn as nn
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from rlgym.api import RLGym
 from rlgym.rocket_league.action_parsers import LookupTableAction, RepeatAction
 from rlgym.rocket_league.done_conditions import GoalCondition, TimeoutCondition
 from rlgym.rocket_league.obs_builders import DefaultObs
-from rlgym.rocket_league.reward_functions import GoalReward
 from rlgym.rocket_league.sim import RocketSimEngine
 from rlgym.rocket_league.state_mutators import (
     FixedTeamSizeMutator,
@@ -21,7 +21,8 @@ from rlgym.rocket_league.state_mutators import (
     MutatorSequence,
 )
 
-from results import append_result
+from benchmarks.results import append_result
+from benchmarks.rl.nexto_reward import FixedNextoReward
 
 
 class RocketSimEnv(gym.Env):
@@ -39,7 +40,7 @@ class RocketSimEnv(gym.Env):
             ),
             obs_builder=DefaultObs(),
             action_parser=RepeatAction(LookupTableAction(), repeats=frameskip),
-            reward_fn=GoalReward(),
+            reward_fn=FixedNextoReward(),
             transition_engine=RocketSimEngine(),
             termination_cond=GoalCondition(),
             truncation_cond=TimeoutCondition(max_ticks / 120),
@@ -101,6 +102,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--multiprocess", action="store_true")
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
@@ -113,7 +115,15 @@ def main() -> None:
     def make_env(seed: int, index: int):
         return lambda: RocketSimEnv(args.frameskip, args.max_ticks, seed + index)
 
-    env = make_vec_env(make_env(args.seed, 0), n_envs=args.n_sim, seed=args.seed)
+    def make_vector_env(seed: int):
+        if args.multiprocess and args.n_sim > 1:
+            return SubprocVecEnv(
+                [make_env(seed, index) for index in range(args.n_sim)],
+                start_method="spawn",
+            )
+        return make_vec_env(make_env(seed, 0), n_envs=args.n_sim, seed=seed)
+
+    env = make_vector_env(args.seed)
 
     if args.test:
         observations = env.reset()
@@ -127,7 +137,7 @@ def main() -> None:
     throughputs = []
     for run_index in range(args.runs):
         seed = args.seed + run_index
-        env = make_vec_env(make_env(seed, 0), n_envs=args.n_sim, seed=seed)
+        env = make_vector_env(seed)
         model = PPO(
             "MlpPolicy",
             env,
@@ -165,6 +175,7 @@ def main() -> None:
                 "epochs": args.epochs,
                 "seed": seed,
                 "run_index": run_index,
+                "multiprocess": args.multiprocess,
                 "device": "cpu",
                 "elapsed_seconds": elapsed,
                 "transitions": model.num_timesteps,

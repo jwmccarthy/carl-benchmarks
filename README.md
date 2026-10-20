@@ -1,6 +1,6 @@
 # CARL Benchmarks
 
-Throughput benchmarks comparing SB3 PPO with RLGym/RocketSim against JARL PPO with CARL. CARL and JARL are included as Git submodules.
+Throughput benchmarks comparing SB3 PPO with RLGym/RocketSim against JARL PPO with CARL. CARL and JARL are included as Git submodules. RL runners live in `benchmarks/rl`; simulation-only runners live in `benchmarks/sim`.
 
 ## Quickstart
 
@@ -15,16 +15,18 @@ CARL builds require Python 3.11, CUDA `nvcc`, and a compatible NVIDIA driver. GP
 Run interface tests:
 
 ```bash
-uv run python benchmarks/sb3_rocketsim.py --test
-uv run python benchmarks/jarl_carl.py --test --n-sim 1024
+uv run python -m benchmarks.rl.sb3_rocketsim --test
+uv run python -m benchmarks.rl.jarl_carl --test --n-sim 1024
 ```
 
 Run five seeded measurements:
 
 ```bash
-uv run python benchmarks/sb3_rocketsim.py --n-sim 1
-uv run python benchmarks/jarl_carl.py --n-sim 1024
+uv run python -m benchmarks.rl.sb3_rocketsim --n-sim 1
+uv run python -m benchmarks.rl.jarl_carl --n-sim 1024
 ```
+
+The RocketSim RL runner uses the fixed Nexto-style RLGym reward (`shaping_scale=1.0`, `goal_scale=10.0`); there is no annealing. CARL retains its existing reward path. For simulation-only measurements, use `uv run python benchmarks/sim/rocketsim.py` or `uv run python benchmarks/sim/carl.py`. Each random action is held for 120 physics ticks.
 
 ## Defaults
 

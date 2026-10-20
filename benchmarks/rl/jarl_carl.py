@@ -30,8 +30,8 @@ from jarl.sample import RolloutMinibatches
 from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
-from actions import carl_lookup_table
-from results import append_result
+from benchmarks.rl.actions import carl_lookup_table
+from benchmarks.results import append_result
 
 
 class LookupCARLEnv:
