@@ -1,4 +1,5 @@
 import argparse
+import math
 import sys
 import time
 from pathlib import Path
@@ -15,7 +16,7 @@ from carl.gymnasium import CARLTorchVectorEnv
 def main() -> None:
     parser = argparse.ArgumentParser(description="Random-action CARL throughput")
     parser.add_argument("--n-sim", type=int, default=1024)
-    parser.add_argument("--steps", type=int, default=10_000)
+    parser.add_argument("--total-ticks", type=int, default=1_000_000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
@@ -34,7 +35,8 @@ def main() -> None:
     th.cuda.synchronize(env.device)
     started = time.perf_counter()
 
-    for _ in range(args.steps):
+    steps = math.ceil(args.total_ticks / (120 * args.n_sim))
+    for _ in range(steps):
         env.step(th.randint(90, (args.n_sim,), device=env.device))
 
     th.cuda.synchronize(env.device)
@@ -42,7 +44,8 @@ def main() -> None:
 
     env.close()
 
-    transitions = args.steps * args.n_sim
+    transitions = steps * args.n_sim
+    physics_ticks = transitions * 120
     steps_per_second = transitions / elapsed
 
     append_result(
@@ -57,9 +60,7 @@ def main() -> None:
             "seed": args.seed,
         },
     )
-    print(
-        f"{steps_per_second:.0f} env steps/s ({args.steps * 120 * args.n_sim / elapsed:.0f} ticks/s)"
-    )
+    print(f"{steps_per_second:.0f} env steps/s ({physics_ticks / elapsed:.0f} ticks/s)")
 
 
 if __name__ == "__main__":
