@@ -17,11 +17,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Random-action CARL throughput")
     parser.add_argument("--n-sim", type=int, default=1024)
     parser.add_argument("--total-ticks", type=int, default=1_000_000)
+    parser.add_argument("--warmup-steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
     args = parser.parse_args()
+    if min(args.n_sim, args.total_ticks, args.warmup_steps) < 1:
+        parser.error("n-sim, total-ticks, and warmup-steps must be positive")
+
     base = CARLTorchVectorEnv(
         n_sim=args.n_sim,
         n_blue=1,
@@ -32,6 +36,10 @@ def main() -> None:
     )
     env = LookupCARLEnv(base, args.seed)
     env.reset()
+
+    for _ in range(args.warmup_steps):
+        env.step(th.randint(90, (args.n_sim,), device=env.device))
+
     th.cuda.synchronize(env.device)
     started = time.perf_counter()
 
@@ -53,6 +61,7 @@ def main() -> None:
         {
             "engine": "carl_random",
             "n_sim": args.n_sim,
+            "warmup_steps": args.warmup_steps,
             "steps": transitions,
             "target_ticks": args.total_ticks,
             "physics_ticks": physics_ticks,
