@@ -1,14 +1,17 @@
 import argparse
 import statistics
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
 import torch.nn as nn
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import VecEnv
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from rlgym.api import RLGym
 from rlgym.rocket_league.action_parsers import LookupTableAction, RepeatAction
@@ -91,6 +94,74 @@ class RocketSimEnv(gym.Env):
         self.env.close()
 
 
+class ThreadedRocketSimVecEnv(VecEnv):
+    def __init__(self, n_envs: int, frameskip: int, max_ticks: int, seed: int):
+        self.envs = [
+            RocketSimEnv(frameskip, max_ticks, seed + index) for index in range(n_envs)
+        ]
+        super().__init__(
+            n_envs, self.envs[0].observation_space, self.envs[0].action_space
+        )
+        self.executor = ThreadPoolExecutor(max_workers=n_envs)
+        self.actions = None
+        self._seeds = [seed + index for index in range(n_envs)]
+
+    def reset(self):
+        observations = [
+            env.reset(seed=seed)[0] for env, seed in zip(self.envs, self._seeds)
+        ]
+        self._seeds = [None] * self.num_envs
+        return np.stack(observations)
+
+    def step_async(self, actions):
+        self.actions = actions
+
+    def step_wait(self):
+        results = list(
+            self.executor.map(
+                lambda pair: pair[0].step(int(pair[1])),
+                zip(self.envs, self.actions),
+            )
+        )
+        observations, rewards, dones, infos = [], [], [], []
+        for env, (observation, reward, terminated, truncated, info) in zip(
+            self.envs, results
+        ):
+            done = terminated or truncated
+            info = dict(info)
+            if done:
+                info["terminal_observation"] = observation
+                observation = env.reset()[0]
+            observations.append(observation)
+            rewards.append(reward)
+            dones.append(done)
+            infos.append(info)
+        return np.stack(observations), np.asarray(rewards), np.asarray(dones), infos
+
+    def close(self):
+        self.executor.shutdown()
+        for env in self.envs:
+            env.close()
+
+    def get_attr(self, attr_name, indices=None):
+        return [getattr(env, attr_name) for env in self.envs]
+
+    def set_attr(self, attr_name, value, indices=None):
+        for env in self.envs:
+            setattr(env, attr_name, value)
+
+    def env_method(self, method_name, *args, indices=None, **kwargs):
+        return [getattr(env, method_name)(*args, **kwargs) for env in self.envs]
+
+    def env_is_wrapped(self, wrapper_class, indices=None):
+        return [False] * self.num_envs
+
+    def seed(self, seed=None):
+        seed = 0 if seed is None else seed
+        self._seeds = [seed + index for index in range(self.num_envs)]
+        return self._seeds
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train SB3 PPO in RocketSim")
     parser.add_argument("--n-sim", type=int, default=1)
@@ -102,7 +173,6 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--multiprocess", action="store_true")
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
@@ -110,18 +180,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if args.n_sim < 1:
+        parser.error("--n-sim must be positive")
     rollout_steps = args.total_batch_size // args.n_sim
 
-    def make_env(seed: int, index: int):
-        return lambda: RocketSimEnv(args.frameskip, args.max_ticks, seed + index)
-
     def make_vector_env(seed: int):
-        if args.multiprocess and args.n_sim > 1:
-            return SubprocVecEnv(
-                [make_env(seed, index) for index in range(args.n_sim)],
-                start_method="spawn",
-            )
-        return make_vec_env(make_env(seed, 0), n_envs=args.n_sim, seed=seed)
+        return ThreadedRocketSimVecEnv(args.n_sim, args.frameskip, args.max_ticks, seed)
 
     env = make_vector_env(args.seed)
 
@@ -175,7 +239,7 @@ def main() -> None:
                 "epochs": args.epochs,
                 "seed": seed,
                 "run_index": run_index,
-                "multiprocess": args.multiprocess,
+                "threaded": args.n_sim > 1,
                 "device": "cpu",
                 "elapsed_seconds": elapsed,
                 "transitions": model.num_timesteps,
