@@ -23,13 +23,15 @@ class FixedNextoReward(RewardFunction):
             car_position = np.asarray(car.position)
             distance = np.linalg.norm(ball - car_position)
             toward_ball = np.dot(np.asarray(car.linear_velocity), ball - car_position)
-            rewards[agent] = 0.0025 * np.exp(-distance / 2300.0) + 0.00125 * np.tanh(
-                toward_ball / 2300.0
-            ) + 0.00025 * min(np.linalg.norm(velocity) / 6000.0, 1.0)
+            rewards[agent] = (
+                0.0025 * np.exp(-distance / 2300.0)
+                + 0.00125 * np.tanh(toward_ball / 2300.0)
+                + 0.00025 * min(np.linalg.norm(velocity) / 6000.0, 1.0)
+            )
         if self.previous is not None:
             for agent in agents:
-                rewards[agent] += 5.0 * float(
-                    np.linalg.norm(velocity) - self.previous
-                ) / 6000.0
+                rewards[agent] += (
+                    5.0 * float(np.linalg.norm(velocity) - self.previous) / 6000.0
+                )
         self.previous = np.linalg.norm(velocity)
         return rewards
