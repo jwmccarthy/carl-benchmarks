@@ -26,7 +26,7 @@ uv run python -m benchmarks.rl.sb3_rocketsim --n-sim 1
 uv run python -m benchmarks.rl.jarl_carl --n-sim 1024
 ```
 
-The RocketSim RL runner uses the fixed Nexto-style RLGym reward (`shaping_scale=1.0`, `goal_scale=10.0`); there is no annealing. CARL retains its existing reward path. For simulation-only measurements, use `uv run python benchmarks/sim/rocketsim.py` or `uv run python benchmarks/sim/carl.py`. Each random action is held for 120 physics ticks. RocketSim `--n-sim` environments are stepped concurrently with a thread pool in both runners.
+The RocketSim RL runner uses the fixed Nexto-style RLGym reward (`shaping_scale=1.0`, `goal_scale=10.0`); there is no annealing. CARL retains its existing reward path. For simulation-only measurements, use `uv run python benchmarks/sim/rocketsim.py` or `uv run python benchmarks/sim/carl.py`. Each random action is held for 120 physics ticks. RocketSim `--n-sim` environments are stepped serially for a straightforward comparison.
 
 ## Defaults
 

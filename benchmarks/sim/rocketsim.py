@@ -1,7 +1,6 @@
 import argparse
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -28,17 +27,14 @@ def main() -> None:
         env.reset(seed=args.seed + i)
     rngs = [np.random.default_rng(args.seed + i) for i in range(args.n_sim)]
 
-    def step(index: int):
-        return envs[index].step(rngs[index].integers(envs[index].action_space.n))
-
     started = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=args.n_sim) as executor:
-        for _ in range(args.steps):
-            results = executor.map(step, range(args.n_sim))
-            for index, result in enumerate(results):
-                _, _, terminated, truncated, _ = result
-                if terminated or truncated:
-                    envs[index].reset()
+    for _ in range(args.steps):
+        for index, env in enumerate(envs):
+            _, _, terminated, truncated, _ = env.step(
+                rngs[index].integers(env.action_space.n)
+            )
+            if terminated or truncated:
+                env.reset()
 
     elapsed = time.perf_counter() - started
 
