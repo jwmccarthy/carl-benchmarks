@@ -31,15 +31,13 @@ def main() -> None:
     )
     env = LookupCARLEnv(base, args.seed)
     env.reset()
+    th.cuda.synchronize(env.device)
     started = time.perf_counter()
 
     for _ in range(args.steps):
-        _, _, terminated, truncated, _ = env.step(
-            th.randint(90, (args.n_sim,), device=env.device)
-        )
-        if (terminated | truncated).any():
-            env.reset()
+        env.step(th.randint(90, (args.n_sim,), device=env.device))
 
+    th.cuda.synchronize(env.device)
     elapsed = time.perf_counter() - started
 
     env.close()
