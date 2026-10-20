@@ -53,8 +53,9 @@ def main() -> None:
         {
             "engine": "carl_random",
             "n_sim": args.n_sim,
-            "steps": args.steps,
-            "physics_ticks": args.steps * 120,
+            "steps": transitions,
+            "target_ticks": args.total_ticks,
+            "physics_ticks": physics_ticks,
             "elapsed_seconds": elapsed,
             "steps_per_second": steps_per_second,
             "seed": args.seed,
