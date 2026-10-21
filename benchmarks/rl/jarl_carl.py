@@ -163,7 +163,7 @@ def main() -> None:
         max_ticks=args.max_ticks,
         normalize=True,
         discrete_actions=True,
-        reward_funcs=(NextoReward(1, 1, shaping_scale=1.0, goal_scale=10.0),),
+        reward_funcs=(NextoReward(1, 1),),
     )
     env = LookupCARLEnv(base, args.seed)
 
@@ -194,7 +194,7 @@ def main() -> None:
             max_ticks=args.max_ticks,
             normalize=True,
             discrete_actions=True,
-            reward_funcs=(NextoReward(1, 1, shaping_scale=1.0, goal_scale=10.0),),
+            reward_funcs=(NextoReward(1, 1),),
         )
         env = LookupCARLEnv(base, seed)
         policy = (
