@@ -1,23 +1,19 @@
 import argparse
 import statistics
-import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
 import torch.nn as nn
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.vec_env import VecEnv
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from stable_baselines3.common.env_util import make_vec_env
 
 from rlgym.api import RLGym
 from rlgym.rocket_league.action_parsers import LookupTableAction, RepeatAction
 from rlgym.rocket_league.done_conditions import GoalCondition, TimeoutCondition
 from rlgym.rocket_league.obs_builders import DefaultObs
+from rlgym.rocket_league.reward_functions import GoalReward
 from rlgym.rocket_league.sim import RocketSimEngine
 from rlgym.rocket_league.state_mutators import (
     FixedTeamSizeMutator,
@@ -25,8 +21,7 @@ from rlgym.rocket_league.state_mutators import (
     MutatorSequence,
 )
 
-from benchmarks.results import append_episode, append_result
-from benchmarks.rl.nexto_reward import NextoReward
+from results import append_result
 
 
 class RocketSimEnv(gym.Env):
@@ -44,7 +39,7 @@ class RocketSimEnv(gym.Env):
             ),
             obs_builder=DefaultObs(),
             action_parser=RepeatAction(LookupTableAction(), repeats=frameskip),
-            reward_fn=NextoReward(),
+            reward_fn=GoalReward(),
             transition_engine=RocketSimEngine(),
             termination_cond=GoalCondition(),
             truncation_cond=TimeoutCondition(max_ticks / 120),
@@ -95,103 +90,6 @@ class RocketSimEnv(gym.Env):
         self.env.close()
 
 
-class ThreadedRocketSimVecEnv(VecEnv):
-    def __init__(self, n_envs: int, frameskip: int, max_ticks: int, seed: int):
-        self.envs = [
-            RocketSimEnv(frameskip, max_ticks, seed + index) for index in range(n_envs)
-        ]
-        super().__init__(
-            n_envs, self.envs[0].observation_space, self.envs[0].action_space
-        )
-        self.executor = ThreadPoolExecutor(max_workers=n_envs)
-        self.actions = None
-        self._seeds = [seed + index for index in range(n_envs)]
-        self.episode_returns = np.zeros(n_envs, dtype=np.float32)
-
-    def reset(self):
-        observations = [
-            env.reset(seed=seed)[0] for env, seed in zip(self.envs, self._seeds)
-        ]
-        self._seeds = [None] * self.num_envs
-        return np.stack(observations)
-
-    def step_async(self, actions):
-        self.actions = actions
-
-    def step_wait(self):
-        results = list(
-            self.executor.map(
-                lambda pair: pair[0].step(int(pair[1])),
-                zip(self.envs, self.actions),
-            )
-        )
-        observations, rewards, dones, infos = [], [], [], []
-        for env, (observation, reward, terminated, truncated, info) in zip(
-            self.envs, results
-        ):
-            done = terminated or truncated
-            info = dict(info)
-            if done:
-                info["terminal_observation"] = observation
-                observation = env.reset()[0]
-            observations.append(observation)
-            rewards.append(reward)
-            dones.append(done)
-            self.episode_returns[len(observations) - 1] += reward
-            if done:
-                info["episode"] = {
-                    "r": float(self.episode_returns[len(observations) - 1]),
-                }
-                self.episode_returns[len(observations) - 1] = 0
-            infos.append(info)
-        return np.stack(observations), np.asarray(rewards), np.asarray(dones), infos
-
-    def close(self):
-        self.executor.shutdown()
-        for env in self.envs:
-            env.close()
-
-    def get_attr(self, attr_name, indices=None):
-        return [getattr(env, attr_name) for env in self.envs]
-
-    def set_attr(self, attr_name, value, indices=None):
-        for env in self.envs:
-            setattr(env, attr_name, value)
-
-    def env_method(self, method_name, *args, indices=None, **kwargs):
-        return [getattr(env, method_name)(*args, **kwargs) for env in self.envs]
-
-    def env_is_wrapped(self, wrapper_class, indices=None):
-        return [False] * self.num_envs
-
-    def seed(self, seed=None):
-        seed = 0 if seed is None else seed
-        self._seeds = [seed + index for index in range(self.num_envs)]
-        return self._seeds
-
-
-class EpisodeCallback(BaseCallback):
-    def __init__(self, path: Path, run_index: int, verbose: int = 0):
-        super().__init__(verbose)
-        self.path = path
-        self.run_index = run_index
-        self.started = time.perf_counter()
-
-    def _on_step(self) -> bool:
-        for info in self.locals.get("infos", []):
-            episode = info.get("episode")
-            if episode is not None:
-                append_episode(
-                    self.path,
-                    "rocketsim_sb3",
-                    self.num_timesteps,
-                    episode["r"],
-                    time.perf_counter() - self.started,
-                    self.run_index,
-                )
-        return True
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train SB3 PPO in RocketSim")
     parser.add_argument("--n-sim", type=int, default=1)
@@ -199,35 +97,23 @@ def main() -> None:
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
-    parser.add_argument("--rollout-steps", type=int)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument("--episode-log-file", type=Path)
+    parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
-    if args.episode_log_file is None:
-        args.episode_log_file = Path(
-            f"results/episodes_rocketsim_sb3_n{args.n_sim}.jsonl"
-        )
 
-    if args.n_sim < 1:
-        parser.error("--n-sim must be positive")
-    if args.rollout_steps is not None:
-        if args.rollout_steps < 1:
-            parser.error("--rollout-steps must be positive")
-        args.total_batch_size = args.rollout_steps * args.n_sim
     rollout_steps = args.total_batch_size // args.n_sim
 
-    def make_vector_env(seed: int):
-        return ThreadedRocketSimVecEnv(args.n_sim, args.frameskip, args.max_ticks, seed)
+    def make_env(seed: int, index: int):
+        return lambda: RocketSimEnv(args.frameskip, args.max_ticks, seed + index)
 
-    env = make_vector_env(args.seed)
+    env = make_vec_env(make_env(args.seed, 0), n_envs=args.n_sim, seed=args.seed)
 
     if args.test:
         observations = env.reset()
@@ -239,10 +125,9 @@ def main() -> None:
     env.close()
     elapsed_times = []
     throughputs = []
-
     for run_index in range(args.runs):
         seed = args.seed + run_index
-        env = make_vector_env(seed)
+        env = make_vec_env(make_env(seed, 0), n_envs=args.n_sim, seed=seed)
         model = PPO(
             "MlpPolicy",
             env,
@@ -262,10 +147,7 @@ def main() -> None:
             verbose=1,
         )
         started = time.perf_counter()
-        model.learn(
-            args.timesteps,
-            callback=EpisodeCallback(args.episode_log_file, run_index),
-        )
+        model.learn(args.timesteps)
         elapsed = time.perf_counter() - started
         collections = model.num_timesteps // args.total_batch_size
         gradient_steps = (
@@ -283,7 +165,6 @@ def main() -> None:
                 "epochs": args.epochs,
                 "seed": seed,
                 "run_index": run_index,
-                "threaded": args.n_sim > 1,
                 "device": "cpu",
                 "elapsed_seconds": elapsed,
                 "transitions": model.num_timesteps,
@@ -303,7 +184,6 @@ def main() -> None:
 
     elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
     throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
-
     print(
         f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
         f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "

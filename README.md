@@ -1,40 +1,46 @@
 # CARL Benchmarks
 
-Throughput benchmarks comparing SB3 PPO with RLGym/RocketSim against JARL PPO with CARL. CARL and JARL are included as Git submodules.
+End-to-end PPO throughput benchmarks for RLGym/RocketSim and CARL. CARL and JARL (an experimental Torch-based RL framework that enables GPU-resident learning) are included as Git submodules.
 
 ## Quickstart
 
-Clone and install:
+Clone the repository and its submodules:
 
 ```bash
 git clone --recurse-submodules https://github.com/jwmccarthy/carl-benchmarks.git
 cd carl-benchmarks
+```
+
+CARL requires Python 3.11, a CUDA toolkit with `nvcc`, and a compatible NVIDIA driver. The build detects the local GPU compute capability automatically.
+
+```bash
 uv sync
 ```
 
-CARL builds require Python 3.11, CUDA `nvcc`, and a compatible NVIDIA driver. GPU architecture is detected automatically.
-
-The RL benchmarks use fixed Nexto-style reward settings: `shaping_scale=1.0`, `goal_scale=10.0`, with no reward annealing.
-
-Test the runners:
+Verify each benchmark:
 
 ```bash
-uv run python -m benchmarks.rl.sb3_rocketsim --test
-uv run python -m benchmarks.rl.jarl_carl --test --n-sim 1024
+uv run python benchmarks/sb3_rocketsim.py --test
+uv run python benchmarks/jarl_carl.py --test --n-sim 256
 ```
 
-Run the benchmarks:
+Run five seeded measurements by default:
 
 ```bash
-uv run python -m benchmarks.rl.sb3_rocketsim --n-sim 1
-uv run python -m benchmarks.rl.jarl_carl --n-sim 1024
+uv run python benchmarks/sb3_rocketsim.py --n-sim 1
+uv run python benchmarks/jarl_carl.py --n-sim 1024
 ```
 
-Simulation-only benchmarks hold random actions for 120 physics ticks:
+| Argument | RocketSim default | CARL default |
+| --- | ---: | ---: |
+| `--n-sim` | 1 | 1,024 |
+| `--frameskip` | 4 | 4 |
+| `--max-ticks` | 36,000 | 36,000 |
+| `--timesteps` | 1,000,000 | 1,000,000 |
+| `--total-batch-size` | 32,768 | 32,768 |
+| `--minibatch-size` | 32,768 | 32,768 |
+| `--epochs` | 8 | 8 |
+| `--seed` | 0 | 0 |
+| `--runs` | 5 | 5 |
 
-```bash
-uv run python -m benchmarks.sim.rocketsim --n-sim 4
-uv run python -m benchmarks.sim.carl --n-sim 1024
-```
-
-RL benchmarks run once by default. Use `--runs 5` for repeated seeds. Results are written to `results/benchmarks.jsonl`; episode logs default to engine/config-specific files such as `results/episodes_carl_jarl_n1024.jsonl`. Pass `--episode-log-file` to override the path.
+Results are appended to `results/benchmarks.jsonl`. Use `--runs 1` for a single measurement.

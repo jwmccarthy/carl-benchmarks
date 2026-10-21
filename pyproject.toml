@@ -7,11 +7,9 @@ requires-python = "==3.11.*"
 dependencies = [
     "carl[gymnasium]",
     "gymnasium>=1.0",
-    "matplotlib",
     "jarl",
     "rlgym-rocket-league[sim]==2.0.1",
     "stable-baselines3>=2.9.0",
-    "seaborn",
     "tensorboard>=2.0",
     "torch>=2.7",
 ]
