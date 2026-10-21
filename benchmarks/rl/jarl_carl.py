@@ -139,9 +139,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    rollout_steps = args.rollout_steps or args.total_batch_size // args.n_sim
-    if rollout_steps * args.n_sim != args.total_batch_size:
-        parser.error("--rollout-steps * --n-sim must equal --total-batch-size")
+    if args.rollout_steps is not None:
+        if args.rollout_steps < 1:
+            parser.error("--rollout-steps must be positive")
+        args.total_batch_size = args.rollout_steps * args.n_sim
+    rollout_steps = args.total_batch_size // args.n_sim
 
     base = CARLTorchVectorEnv(
         n_sim=args.n_sim,

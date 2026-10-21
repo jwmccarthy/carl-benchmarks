@@ -212,9 +212,11 @@ def main() -> None:
 
     if args.n_sim < 1:
         parser.error("--n-sim must be positive")
-    rollout_steps = args.rollout_steps or args.total_batch_size // args.n_sim
-    if rollout_steps * args.n_sim != args.total_batch_size:
-        parser.error("--rollout-steps * --n-sim must equal --total-batch-size")
+    if args.rollout_steps is not None:
+        if args.rollout_steps < 1:
+            parser.error("--rollout-steps must be positive")
+        args.total_batch_size = args.rollout_steps * args.n_sim
+    rollout_steps = args.total_batch_size // args.n_sim
 
     def make_vector_env(seed: int):
         return ThreadedRocketSimVecEnv(args.n_sim, args.frameskip, args.max_ticks, seed)
