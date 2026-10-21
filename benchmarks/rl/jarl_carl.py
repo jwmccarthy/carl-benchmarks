@@ -32,6 +32,7 @@ from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
 from benchmarks.rl.actions import carl_lookup_table
+from benchmarks.rl.carl_nexto_reward import AnnealedNextoReward
 from benchmarks.results import append_episode, append_result
 
 
@@ -148,6 +149,7 @@ def main() -> None:
         max_ticks=args.max_ticks,
         normalize=True,
         discrete_actions=True,
+        reward_funcs=(AnnealedNextoReward(1, 1, shaping_scale=1.0, goal_scale=10.0),),
     )
     env = LookupCARLEnv(base, args.seed)
 
@@ -178,6 +180,9 @@ def main() -> None:
             max_ticks=args.max_ticks,
             normalize=True,
             discrete_actions=True,
+            reward_funcs=(
+                AnnealedNextoReward(1, 1, shaping_scale=1.0, goal_scale=10.0),
+            ),
         )
         env = LookupCARLEnv(base, seed)
         policy = (
