@@ -106,9 +106,10 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
 
 
 class EpisodeLogger(Logger):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, run_index: int) -> None:
         super().__init__()
         self.path = path
+        self.run_index = run_index
         self.started = time.perf_counter()
 
     def update(self, metrics, step=None):
@@ -121,6 +122,7 @@ class EpisodeLogger(Logger):
                 step or 0,
                 float(reward),
                 time.perf_counter() - self.started,
+                self.run_index,
             )
 
 
@@ -139,12 +141,12 @@ def main() -> None:
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
-    parser.add_argument(
-        "--episode-log-file", type=Path, default=Path("results/episodes.jsonl")
-    )
+    parser.add_argument("--episode-log-file", type=Path)
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
+    if args.episode_log_file is None:
+        args.episode_log_file = Path(f"results/episodes_carl_jarl_n{args.n_sim}.jsonl")
 
     if args.rollout_steps is not None:
         if args.rollout_steps < 1:
@@ -241,7 +243,7 @@ def main() -> None:
             section="PPO",
         )
 
-        logger = EpisodeLogger(args.episode_log_file)
+        logger = EpisodeLogger(args.episode_log_file, run_index)
         logger.register_progress_metric(
             "episode",
             "reward",

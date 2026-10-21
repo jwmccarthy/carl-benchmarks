@@ -37,4 +37,4 @@ uv run python -m benchmarks.sim.rocketsim --n-sim 4
 uv run python -m benchmarks.sim.carl --n-sim 1024
 ```
 
-RL benchmarks run once by default. Use `--runs 5` for repeated seeds. Results are written to `results/benchmarks.jsonl`; episode rewards and elapsed time are written to `results/episodes.jsonl`.
+RL benchmarks run once by default. Use `--runs 5` for repeated seeds. Results are written to `results/benchmarks.jsonl`; episode logs default to engine/config-specific files such as `results/episodes_carl_jarl_n1024.jsonl`. Pass `--episode-log-file` to override the path.

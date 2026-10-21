@@ -171,9 +171,10 @@ class ThreadedRocketSimVecEnv(VecEnv):
 
 
 class EpisodeCallback(BaseCallback):
-    def __init__(self, path: Path, verbose: int = 0):
+    def __init__(self, path: Path, run_index: int, verbose: int = 0):
         super().__init__(verbose)
         self.path = path
+        self.run_index = run_index
         self.started = time.perf_counter()
 
     def _on_step(self) -> bool:
@@ -186,6 +187,7 @@ class EpisodeCallback(BaseCallback):
                     self.num_timesteps,
                     episode["r"],
                     time.perf_counter() - self.started,
+                    self.run_index,
                 )
         return True
 
@@ -202,15 +204,17 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument(
-        "--episode-log-file", type=Path, default=Path("results/episodes.jsonl")
-    )
+    parser.add_argument("--episode-log-file", type=Path)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
+    if args.episode_log_file is None:
+        args.episode_log_file = Path(
+            f"results/episodes_rocketsim_sb3_n{args.n_sim}.jsonl"
+        )
 
     if args.n_sim < 1:
         parser.error("--n-sim must be positive")
@@ -258,7 +262,10 @@ def main() -> None:
             verbose=1,
         )
         started = time.perf_counter()
-        model.learn(args.timesteps, callback=EpisodeCallback(args.episode_log_file))
+        model.learn(
+            args.timesteps,
+            callback=EpisodeCallback(args.episode_log_file, run_index),
+        )
         elapsed = time.perf_counter() - started
         collections = model.num_timesteps // args.total_batch_size
         gradient_steps = (
