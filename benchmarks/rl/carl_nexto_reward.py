@@ -50,9 +50,7 @@ class NextoRewardWeights:
     win_probability: float = 10.0
 
 
-class AnnealedNextoReward:
-    """Permanent weighted goals plus annealable shaping from the Nexto reward."""
-
+class NextoReward:
     def __init__(
         self,
         n_blue: int,
@@ -298,15 +296,4 @@ class AnnealedNextoReward:
         return (cls._unit(left) * cls._unit(right)).sum(dim=-1)
 
 
-def nexto_shaping_scale(
-    transitions: int,
-    initial: float,
-    total_transitions: int,
-) -> float:
-    if transitions >= total_transitions:
-        return 0.0
-    fraction = max(transitions, 0) / total_transitions
-    return initial * (1.0 - fraction)
-
-
-__all__ = ["AnnealedNextoReward", "NextoRewardWeights", "nexto_shaping_scale"]
+__all__ = ["NextoReward", "NextoRewardWeights"]

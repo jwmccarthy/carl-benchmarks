@@ -21,15 +21,20 @@ def main() -> None:
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
     args = parser.parse_args()
+
     if min(args.n_sim, args.total_ticks) < 1:
         parser.error("--n-sim and --total-ticks must be positive")
+
     steps = math.ceil(args.total_ticks / (120 * args.n_sim))
     envs = [RocketSimEnv(frameskip=120, seed=args.seed + i) for i in range(args.n_sim)]
+
     for i, env in enumerate(envs):
         env.reset(seed=args.seed + i)
+
     rngs = [np.random.default_rng(args.seed + i) for i in range(args.n_sim)]
 
     started = time.perf_counter()
+
     for _ in range(steps):
         for index, env in enumerate(envs):
             _, _, terminated, truncated, _ = env.step(

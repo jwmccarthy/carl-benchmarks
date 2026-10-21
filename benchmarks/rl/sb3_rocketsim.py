@@ -26,7 +26,7 @@ from rlgym.rocket_league.state_mutators import (
 )
 
 from benchmarks.results import append_episode, append_result
-from benchmarks.rl.nexto_reward import FixedNextoReward
+from benchmarks.rl.nexto_reward import NextoReward
 
 
 class RocketSimEnv(gym.Env):
@@ -44,7 +44,7 @@ class RocketSimEnv(gym.Env):
             ),
             obs_builder=DefaultObs(),
             action_parser=RepeatAction(LookupTableAction(), repeats=frameskip),
-            reward_fn=FixedNextoReward(),
+            reward_fn=NextoReward(),
             transition_engine=RocketSimEngine(),
             termination_cond=GoalCondition(),
             truncation_cond=TimeoutCondition(max_ticks / 120),
