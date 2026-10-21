@@ -25,13 +25,14 @@ from jarl.modules.base import CompositeNet
 from jarl.modules.encoder import FlattenEncoder
 from jarl.modules.operator import Critic
 from jarl.modules.policy import CategoricalPolicy
+from jarl.log.logger import Logger
 from jarl.runtime import OnPolicySchedule, Trainer
 from jarl.sample import RolloutMinibatches
 from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
 from benchmarks.rl.actions import carl_lookup_table
-from benchmarks.results import append_result
+from benchmarks.results import append_episode, append_result
 
 
 class LookupCARLEnv:
@@ -103,6 +104,18 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
         return self.dist(observation).sample()
 
 
+class EpisodeLogger(Logger):
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self.path = path
+
+    def update(self, metrics, step=None):
+        super().update(metrics, step)
+        reward = metrics.get("episode", {}).get("reward")
+        if reward is not None:
+            append_episode(self.path, "carl_jarl", step or 0, float(reward))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in CARL")
     parser.add_argument("--n-sim", type=int, default=1024)
@@ -116,6 +129,9 @@ def main() -> None:
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
+    )
+    parser.add_argument(
+        "--episode-log-file", type=Path, default=Path("results/episodes.jsonl")
     )
     parser.add_argument("--test", action="store_true")
 
@@ -210,11 +226,23 @@ def main() -> None:
             section="PPO",
         )
 
+        logger = EpisodeLogger(args.episode_log_file)
+        logger.register_progress_metric(
+            "episode",
+            "reward",
+            label="episode reward",
+            format_spec=".3f",
+        )
+
         th.cuda.reset_peak_memory_stats()
         started = time.perf_counter()
-        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(
-            args.timesteps
-        )
+        Trainer(
+            runner,
+            buffer,
+            Algorithm(update),
+            OnPolicySchedule(),
+            logger=logger,
+        ).run(args.timesteps)
         th.cuda.synchronize()
         elapsed = time.perf_counter() - started
 
@@ -259,12 +287,14 @@ def main() -> None:
             f"peak VRAM {peak_allocated_mib:.0f} MiB allocated / "
             f"{peak_reserved_mib:.0f} MiB reserved",
         )
+
         elapsed_times.append(elapsed)
         throughputs.append(transitions_per_second)
         env.close()
 
     elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
     throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
+
     print(
         f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
         f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "

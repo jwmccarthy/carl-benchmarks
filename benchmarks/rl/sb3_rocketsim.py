@@ -9,6 +9,7 @@ import gymnasium as gym
 import numpy as np
 import torch.nn as nn
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import VecEnv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -24,7 +25,7 @@ from rlgym.rocket_league.state_mutators import (
     MutatorSequence,
 )
 
-from benchmarks.results import append_result
+from benchmarks.results import append_episode, append_result
 from benchmarks.rl.nexto_reward import FixedNextoReward
 
 
@@ -105,6 +106,7 @@ class ThreadedRocketSimVecEnv(VecEnv):
         self.executor = ThreadPoolExecutor(max_workers=n_envs)
         self.actions = None
         self._seeds = [seed + index for index in range(n_envs)]
+        self.episode_returns = np.zeros(n_envs, dtype=np.float32)
 
     def reset(self):
         observations = [
@@ -135,6 +137,12 @@ class ThreadedRocketSimVecEnv(VecEnv):
             observations.append(observation)
             rewards.append(reward)
             dones.append(done)
+            self.episode_returns[len(observations) - 1] += reward
+            if done:
+                info["episode"] = {
+                    "r": float(self.episode_returns[len(observations) - 1]),
+                }
+                self.episode_returns[len(observations) - 1] = 0
             infos.append(info)
         return np.stack(observations), np.asarray(rewards), np.asarray(dones), infos
 
@@ -162,6 +170,24 @@ class ThreadedRocketSimVecEnv(VecEnv):
         return self._seeds
 
 
+class EpisodeCallback(BaseCallback):
+    def __init__(self, path: Path, verbose: int = 0):
+        super().__init__(verbose)
+        self.path = path
+
+    def _on_step(self) -> bool:
+        for info in self.locals.get("infos", []):
+            episode = info.get("episode")
+            if episode is not None:
+                append_episode(
+                    self.path,
+                    "rocketsim_sb3",
+                    self.num_timesteps,
+                    episode["r"],
+                )
+        return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train SB3 PPO in RocketSim")
     parser.add_argument("--n-sim", type=int, default=1)
@@ -173,6 +199,9 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument(
+        "--episode-log-file", type=Path, default=Path("results/episodes.jsonl")
+    )
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )
@@ -199,6 +228,7 @@ def main() -> None:
     env.close()
     elapsed_times = []
     throughputs = []
+
     for run_index in range(args.runs):
         seed = args.seed + run_index
         env = make_vector_env(seed)
@@ -221,7 +251,7 @@ def main() -> None:
             verbose=1,
         )
         started = time.perf_counter()
-        model.learn(args.timesteps)
+        model.learn(args.timesteps, callback=EpisodeCallback(args.episode_log_file))
         elapsed = time.perf_counter() - started
         collections = model.num_timesteps // args.total_batch_size
         gradient_steps = (
@@ -259,6 +289,7 @@ def main() -> None:
 
     elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
     throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
+
     print(
         f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
         f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "

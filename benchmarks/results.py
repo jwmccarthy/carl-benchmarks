@@ -10,3 +10,15 @@ def append_result(path: Path, result: dict) -> None:
     with path.open("a") as file:
         json.dump(result, file, sort_keys=True)
         file.write("\n")
+
+
+def append_episode(path: Path, engine: str, step: int, reward: float) -> None:
+    append_result(
+        path,
+        {
+            "kind": "episode",
+            "engine": engine,
+            "step": step,
+            "episode_reward": reward,
+        },
+    )

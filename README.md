@@ -42,3 +42,4 @@ The RocketSim RL runner uses the fixed Nexto-style RLGym reward (`shaping_scale=
 | `--runs` | 5 | 5 |
 
 Results are appended to `results/benchmarks.jsonl`. Use `--runs 1` for a single run.
+Episode rewards are appended to `results/episodes.jsonl` for plotting. JARL also displays the running episodic reward mean in its progress panel.
