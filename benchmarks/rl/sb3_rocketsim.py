@@ -195,6 +195,7 @@ def main() -> None:
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--total-batch-size", type=int, default=32_768)
+    parser.add_argument("--rollout-steps", type=int)
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
@@ -211,7 +212,9 @@ def main() -> None:
 
     if args.n_sim < 1:
         parser.error("--n-sim must be positive")
-    rollout_steps = args.total_batch_size // args.n_sim
+    rollout_steps = args.rollout_steps or args.total_batch_size // args.n_sim
+    if rollout_steps * args.n_sim != args.total_batch_size:
+        parser.error("--rollout-steps * --n-sim must equal --total-batch-size")
 
     def make_vector_env(seed: int):
         return ThreadedRocketSimVecEnv(args.n_sim, args.frameskip, args.max_ticks, seed)
