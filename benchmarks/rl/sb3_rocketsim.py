@@ -174,6 +174,7 @@ class EpisodeCallback(BaseCallback):
     def __init__(self, path: Path, verbose: int = 0):
         super().__init__(verbose)
         self.path = path
+        self.started = time.perf_counter()
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
@@ -184,6 +185,7 @@ class EpisodeCallback(BaseCallback):
                     "rocketsim_sb3",
                     self.num_timesteps,
                     episode["r"],
+                    time.perf_counter() - self.started,
                 )
         return True
 
@@ -199,7 +201,7 @@ def main() -> None:
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--runs", type=int, default=1)
     parser.add_argument(
         "--episode-log-file", type=Path, default=Path("results/episodes.jsonl")
     )

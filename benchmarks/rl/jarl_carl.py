@@ -109,12 +109,19 @@ class EpisodeLogger(Logger):
     def __init__(self, path: Path) -> None:
         super().__init__()
         self.path = path
+        self.started = time.perf_counter()
 
     def update(self, metrics, step=None):
         super().update(metrics, step)
         reward = metrics.get("episode", {}).get("reward")
         if reward is not None:
-            append_episode(self.path, "carl_jarl", step or 0, float(reward))
+            append_episode(
+                self.path,
+                "carl_jarl",
+                step or 0,
+                float(reward),
+                time.perf_counter() - self.started,
+            )
 
 
 def main() -> None:
@@ -128,7 +135,7 @@ def main() -> None:
     parser.add_argument("--minibatch-size", type=int, default=32_768)
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--runs", type=int, default=1)
     parser.add_argument(
         "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
     )

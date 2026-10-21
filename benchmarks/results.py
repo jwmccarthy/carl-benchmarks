@@ -12,7 +12,13 @@ def append_result(path: Path, result: dict) -> None:
         file.write("\n")
 
 
-def append_episode(path: Path, engine: str, step: int, reward: float) -> None:
+def append_episode(
+    path: Path,
+    engine: str,
+    step: int,
+    reward: float,
+    time_seconds: float,
+) -> None:
     append_result(
         path,
         {
@@ -20,5 +26,6 @@ def append_episode(path: Path, engine: str, step: int, reward: float) -> None:
             "engine": engine,
             "step": step,
             "episode_reward": reward,
+            "time_seconds": time_seconds,
         },
     )
