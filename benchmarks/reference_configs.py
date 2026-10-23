@@ -5,7 +5,7 @@ from math import floor
 from typing import Final
 
 
-CARL_N_SIM_SWEEP: Final = (512, 1024, 2048, 4096, 8192)
+from unified_configs import CARL_N_SIM_SWEEP, CPP_GAMES_PER_THREAD, CPP_THREADS, PPO, PYTHON_PROCESSES
 CARL_CARS_PER_1V1: Final = 2
 
 
@@ -64,32 +64,32 @@ class CARLRollout:
 
 RLGYMPPO_PYTHON: Final = ReferenceProfile(
     name="rlgymppo_python",
-    processes=32,
+    processes=PYTHON_PROCESSES,
     threads=None,
     games_per_thread=None,
-    collection_transitions=50_000,
-    minibatch_size=50_000,
-    epochs=1,
-    policy_layers=(256, 256, 256),
-    critic_layers=(256, 256, 256),
-    entropy_coefficient=0.001,
-    learning_rate=3e-4,
-    frameskip=8,
+    collection_transitions=PPO.collection_transitions,
+    minibatch_size=PPO.minibatch_size,
+    epochs=PPO.epochs,
+    policy_layers=PPO.policy_layers,
+    critic_layers=PPO.critic_layers,
+    entropy_coefficient=PPO.entropy_coefficient,
+    learning_rate=PPO.learning_rate,
+    frameskip=PPO.frameskip,
 )
 
 RLGYMPPO_CPP: Final = ReferenceProfile(
     name="rlgymppo_cpp",
     processes=None,
-    threads=16,
-    games_per_thread=24,
-    collection_transitions=100_000,
-    minibatch_size=25_000,
-    epochs=1,
-    policy_layers=(256, 256, 256),
-    critic_layers=(256, 256, 256),
-    entropy_coefficient=0.01,
-    learning_rate=2e-4,
-    frameskip=8,
+    threads=CPP_THREADS,
+    games_per_thread=CPP_GAMES_PER_THREAD,
+    collection_transitions=PPO.collection_transitions,
+    minibatch_size=PPO.minibatch_size,
+    epochs=PPO.epochs,
+    policy_layers=PPO.policy_layers,
+    critic_layers=PPO.critic_layers,
+    entropy_coefficient=PPO.entropy_coefficient,
+    learning_rate=PPO.learning_rate,
+    frameskip=PPO.frameskip,
 )
 
 REFERENCE_PROFILES: Final = {

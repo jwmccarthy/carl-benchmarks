@@ -1,49 +1,16 @@
 # CARL Benchmarks
 
-End-to-end PPO throughput benchmarks for RLGym/RocketSim and CARL. CARL and JARL (an experimental Torch-based RL framework that enables GPU-resident learning) are included as Git submodules.
+Unified 1v1 current-shared-policy self-play PPO throughput benchmarks. All runners use lookup actions, kickoff resets, GoalReward `10`, TouchReward `0.1`, goal/no-touch-10-second terminals, frameskip `8`, 3x256 policy/critic, collection `100000`, minibatch `25000`, one epoch, entropy `0.01`, and learning rate `2e-4`.
 
-## Quickstart
-
-Clone the repository and its submodules:
-
-```bash
-git clone --recurse-submodules https://github.com/jwmccarthy/carl-benchmarks.git
-cd carl-benchmarks
-```
-
-CARL requires Python 3.11, a CUDA toolkit with `nvcc`, and a compatible NVIDIA driver. The build detects the local GPU compute capability automatically.
+Native scales: Python `32` processes (`64` decision actors), C++ `16 x 24` games (`768` decision actors), CARL `n_sim` in `512,1024,2048,4096,8192` (`2*n_sim` decision actors).
 
 ```bash
 uv sync
+uv run python benchmarks/rlgymppo_python.py --iterations 5
+uv run python benchmarks/jarl_carl.py --n-sim 1024 --runs 1
+cmake -S benchmarks/rlgymppo_cpp -B build/rlgymppo_cpp -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/home/jack/miniconda3/envs/rlenv/bin/x86_64-conda-linux-gnu-gcc -DCMAKE_CXX_COMPILER=/home/jack/miniconda3/envs/rlenv/bin/x86_64-conda-linux-gnu-g++ -DCMAKE_CUDA_COMPILER=/home/jack/miniconda3/envs/rlenv/bin/nvcc -DTorch_DIR=/home/jack/miniconda3/envs/rlenv/lib/python3.11/site-packages/torch/share/cmake/Torch -DPython_EXECUTABLE=/home/jack/miniconda3/envs/rlenv/bin/python -DPython_INCLUDE_DIR=/home/jack/miniconda3/envs/rlenv/include/python3.11 -DPython_LIBRARY=/home/jack/miniconda3/envs/rlenv/lib/libpython3.11.so -DPYTHON_EXECUTABLE=/home/jack/miniconda3/envs/rlenv/bin/python -DPYTHON_INCLUDE_DIR=/home/jack/miniconda3/envs/rlenv/include/python3.11 -DPYTHON_LIBRARY=/home/jack/miniconda3/envs/rlenv/lib/libpython3.11.so -DCUDA_TOOLKIT_ROOT_DIR=/tmp/opencode/cuda-rlenv -DRLGYM_COLLISION_MESHES_DIR=/home/jack/miniconda3/envs/rlenv/lib/python3.11/site-packages/rlgym/rocket_league/sim/collision_meshes
+cmake --build build/rlgymppo_cpp -j 1
+LD_LIBRARY_PATH=/home/jack/miniconda3/envs/rlenv/lib:/home/jack/miniconda3/envs/rlenv/targets/x86_64-linux/lib:/home/jack/miniconda3/envs/rlenv/lib/python3.11/site-packages/torch/lib ./build/rlgymppo_cpp/rlgymppo_cpp_benchmark --iterations 5 --log-file results/benchmarks.jsonl
 ```
 
-Verify CARL's current-policy 1v1 self-play runner:
-
-```bash
-uv run python benchmarks/jarl_carl.py --test --n-sim 256
-```
-
-Print the Python and C++ RLGymPPO reference profiles and derived CARL configurations:
-
-```bash
-uv run python benchmarks/reference_runner.py
-```
-
-Run five seeded CARL measurements using the C++ parity profile:
-
-```bash
-uv run python benchmarks/jarl_carl.py --profile rlgymppo_cpp --n-sim 1024
-```
-
-Results are appended to `results/benchmarks.jsonl`. Use `--runs 1` for a single measurement.
-
-## Reference-Parity Profiles
-
-`benchmarks/reference_configs.py` defines immutable RLGymPPO reference profiles and derived CARL configurations. Python uses 32 processes and 50,000 collection/minibatch transitions. C++ uses 16 x 24 games (384 environments), 100,000 collection transitions, and 25,000 minibatches. Both use one epoch, `(256, 256, 256)` policy and critic networks, and frameskip 8. CARL sweeps `n_sim` over 512, 1024, 2048, 4096, and 8192; every 1v1 simulation contributes two decision environments.
-
-```bash
-uv run python benchmarks/reference_runner.py
-uv run python benchmarks/reference_runner.py --profile rlgymppo_cpp --n-sim 1024 --collection-seconds 12.5 --ppo-update-seconds 0.8
-```
-
-CARL uses the current shared policy for both players, with no snapshot pool. Its results report `collection_ticks_per_second`, which excludes PPO update time, and `total_ticks_per_second`, which includes it. The Python and C++ reference submodules retain their upstream build/run requirements; native reference result collection is not yet wired into this repository's JSONL format.
+All measurements append JSONL to `results/benchmarks.jsonl`; each native runner retains one warm-up iteration by default. The C++ wrapper builds against the unmodified `rlgym-ppo-cpp` submodule. CARL uses its supported custom reward callback: `score_delta` and `CarlState.car_ball_touches`, plus its built-in `no_touch_timeout_seconds`; its normal reset is its native kickoff state.

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
-from reference_configs import RLGYMPPO_PYTHON
 from results import append_result
+from unified_configs import PPO, PYTHON_PROCESSES
 
 
 def build_env():
@@ -33,7 +33,7 @@ def build_env():
                 lin_vel_coef=1 / common_values.CAR_MAX_SPEED,
                 ang_vel_coef=1 / common_values.CAR_MAX_ANG_VEL,
             ),
-            action_parser=RepeatAction(LookupTableAction(), repeats=RLGYMPPO_PYTHON.frameskip),
+            action_parser=RepeatAction(LookupTableAction(), repeats=PPO.frameskip),
             reward_fn=CombinedReward((GoalReward(), 10), (TouchReward(), 0.1)),
             termination_cond=GoalCondition(),
             truncation_cond=NoTouchTimeoutCondition(timeout_seconds=10),
@@ -46,12 +46,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the native Python RLGymPPO profile.")
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--warmup-iterations", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=RLGYMPPO_PYTHON.epochs)
+    parser.add_argument("--n-proc", type=int, default=PYTHON_PROCESSES)
+    parser.add_argument("--collection-transitions", type=int, default=PPO.collection_transitions)
+    parser.add_argument("--minibatch-size", type=int, default=PPO.minibatch_size)
+    parser.add_argument("--epochs", type=int, default=PPO.epochs)
+    parser.add_argument("--learning-rate", type=float, default=PPO.learning_rate)
+    parser.add_argument("--entropy-coefficient", type=float, default=PPO.entropy_coefficient)
+    parser.add_argument("--layer-size", type=int, default=256)
+    parser.add_argument("--layer-count", type=int, default=3)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     args = parser.parse_args()
-    if args.iterations < 1 or args.warmup_iterations < 0 or args.epochs < 1:
-        parser.error("iterations and epochs must be positive; warmup iterations cannot be negative")
+    if (args.iterations < 1 or args.warmup_iterations < 0 or args.epochs < 1
+            or args.n_proc < 1 or args.collection_transitions < 1
+            or args.minibatch_size < 1 or args.layer_size < 1 or args.layer_count < 1):
+        parser.error("counts must be positive; warmup iterations cannot be negative")
+    layers = (args.layer_size,) * args.layer_count
 
     from rlgym_ppo import Learner
     import rlgym_ppo.learner as learner_module
@@ -67,16 +77,18 @@ def main() -> None:
             transitions = int(report["Timesteps Collected"])
             collection_seconds = float(report["Timestep Collection Time"])
             total_seconds = float(report["Total Iteration Time"])
-            ticks = transitions * RLGYMPPO_PYTHON.frameskip
+            ticks = transitions * PPO.frameskip
             append_result(
                 args.log_file,
                 {
                     "kind": "native_iteration",
                     "engine": "rlgymppo_python",
-                    "profile": RLGYMPPO_PYTHON.name,
+                    "profile": "unified",
+                    "n_proc": args.n_proc,
+                    "decision_environments": args.n_proc * 2,
                     "epochs": args.epochs,
                     "warmup_iterations": args.warmup_iterations,
-                    "frameskip": RLGYMPPO_PYTHON.frameskip,
+                    "frameskip": PPO.frameskip,
                     "transitions": transitions,
                     "collection_ticks": ticks,
                     "collection_seconds": collection_seconds,
@@ -97,21 +109,21 @@ def main() -> None:
     learner_module.KBHit = NoKeyboardInput
     Learner(
         build_env,
-        n_proc=RLGYMPPO_PYTHON.processes,
+        n_proc=args.n_proc,
         min_inference_size=29,
         random_seed=args.seed,
         timestep_limit=(args.iterations + args.warmup_iterations)
-        * RLGYMPPO_PYTHON.collection_transitions,
-        exp_buffer_size=RLGYMPPO_PYTHON.collection_transitions * 3,
-        ts_per_iteration=RLGYMPPO_PYTHON.collection_transitions,
-        policy_layer_sizes=RLGYMPPO_PYTHON.policy_layers,
-        critic_layer_sizes=RLGYMPPO_PYTHON.critic_layers,
+        * args.collection_transitions,
+        exp_buffer_size=args.collection_transitions * 3,
+        ts_per_iteration=args.collection_transitions,
+        policy_layer_sizes=layers,
+        critic_layer_sizes=layers,
         ppo_epochs=args.epochs,
-        ppo_batch_size=RLGYMPPO_PYTHON.collection_transitions,
-        ppo_minibatch_size=RLGYMPPO_PYTHON.minibatch_size,
-        ppo_ent_coef=RLGYMPPO_PYTHON.entropy_coefficient,
-        policy_lr=RLGYMPPO_PYTHON.learning_rate,
-        critic_lr=RLGYMPPO_PYTHON.learning_rate,
+        ppo_batch_size=args.collection_transitions,
+        ppo_minibatch_size=args.minibatch_size,
+        ppo_ent_coef=args.entropy_coefficient,
+        policy_lr=args.learning_rate,
+        critic_lr=args.learning_rate,
         standardize_returns=True,
         standardize_obs=False,
         checkpoint_load_folder=None,

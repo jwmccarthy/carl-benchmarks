@@ -30,8 +30,14 @@ from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
 from actions import carl_lookup_table
-from reference_configs import REFERENCE_PROFILES, carl_rollout
 from results import append_result
+from unified_configs import (
+    CARL_N_SIM_SWEEP,
+    GOAL_REWARD,
+    NO_TOUCH_TIMEOUT_SECONDS,
+    PPO,
+    TOUCH_REWARD,
+)
 
 
 class LookupCARLEnv:
@@ -80,14 +86,21 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
         return self.dist(observation).sample()
 
 
+def unified_reward(context) -> th.Tensor:
+    """Goal reward uses CARL's score delta; touches are per decision step."""
+    team_sign = context.current.team_sign
+    goals = context.events.score_delta[:, None] * team_sign * GOAL_REWARD
+    touches = context.current.car_ball_touches.float() * TOUCH_REWARD
+    return goals + touches
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in CARL")
-    parser.add_argument("--profile", choices=REFERENCE_PROFILES, default="rlgymppo_cpp")
-    parser.add_argument("--n-sim", type=int, default=1024)
+    parser.add_argument("--n-sim", type=int, choices=CARL_N_SIM_SWEEP, default=1024)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--warmup-collections", type=int, default=1)
-    parser.add_argument("--epochs", type=int)
+    parser.add_argument("--epochs", type=int, default=PPO.epochs)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
@@ -96,22 +109,24 @@ def main() -> None:
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
-    if args.warmup_collections < 0 or (args.epochs is not None and args.epochs < 1):
+    if args.warmup_collections < 0 or args.epochs < 1:
         parser.error("warmup collections cannot be negative and epochs must be positive")
 
-    profile = REFERENCE_PROFILES[args.profile]
-    epochs = args.epochs or profile.epochs
-    rollout = carl_rollout(profile, args.n_sim)
+    decision_environments = args.n_sim * 2
+    rollout_steps = max(1, math.floor(PPO.collection_transitions / decision_environments + 0.5))
+    actual_collection_transitions = rollout_steps * decision_environments
 
     base = CARLTorchVectorEnv(
         n_sim=args.n_sim,
         n_blue=1,
         n_orange=1,
         seed=args.seed,
-        frameskip=profile.frameskip,
+        frameskip=PPO.frameskip,
         max_ticks=args.max_ticks,
+        no_touch_timeout_seconds=NO_TOUCH_TIMEOUT_SECONDS,
         normalize=True,
         discrete_actions=True,
+        reward_funcs=(unified_reward,),
     )
     env = LookupCARLEnv(base)
 
@@ -141,16 +156,18 @@ def main() -> None:
             n_blue=1,
             n_orange=1,
             seed=seed,
-            frameskip=profile.frameskip,
+            frameskip=PPO.frameskip,
             max_ticks=args.max_ticks,
+            no_touch_timeout_seconds=NO_TOUCH_TIMEOUT_SECONDS,
             normalize=True,
             discrete_actions=True,
+            reward_funcs=(unified_reward,),
         )
         env = LookupCARLEnv(base)
         policy = (
             FeedForwardCategoricalPolicy(
                 foot=FlattenEncoder(),
-                body=MLP(dims=list(profile.policy_layers), func=nn.Tanh),
+                body=MLP(dims=list(PPO.policy_layers), func=nn.Tanh),
             )
             .build(env)
             .to(env.device)
@@ -159,14 +176,14 @@ def main() -> None:
         critic = (
             Critic(
                 foot=FlattenEncoder(),
-                body=MLP(dims=list(profile.critic_layers), func=nn.Tanh),
+                body=MLP(dims=list(PPO.critic_layers), func=nn.Tanh),
             )
             .build(env)
             .to(env.device)
         )
 
         buffer = RolloutBuffer(
-            rollout.rollout_steps, env.n_envs, env.device, copy_on_finish=False
+            rollout_steps, env.n_envs, env.device, copy_on_finish=False
         )
         runner = Runner(
             env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic))
@@ -175,7 +192,7 @@ def main() -> None:
         update = Update(
             transforms=(GAE(gamma=0.99, lambda_=0.95),),
             sampler=RolloutMinibatches(
-                batch_size=profile.minibatch_size, epochs=epochs
+                batch_size=PPO.minibatch_size, epochs=args.epochs
             ),
             loss=PPOLoss(
                 policy,
@@ -184,18 +201,18 @@ def main() -> None:
                     clip=0.2,
                     value_clip=None,
                     value_coef=0.5,
-                    entropy_coef=profile.entropy_coefficient,
+                    entropy_coef=PPO.entropy_coefficient,
                 ),
             ),
             optimizer_step=IndependentOptimizerSteps(
                 OptimizerStep(
                     policy,
-                    Adam(policy.parameters(), lr=profile.learning_rate),
+                    Adam(policy.parameters(), lr=PPO.learning_rate),
                     max_grad_norm=0.5,
                 ),
                 OptimizerStep(
                     critic,
-                    Adam(critic.parameters(), lr=profile.learning_rate),
+                    Adam(critic.parameters(), lr=PPO.learning_rate),
                     max_grad_norm=0.5,
                 ),
             ),
@@ -206,18 +223,18 @@ def main() -> None:
         algorithm = Algorithm(update)
         runner.reset()
         for _ in range(args.warmup_collections):
-            for _ in range(rollout.rollout_steps):
+            for _ in range(rollout_steps):
                 runner.step()
             algorithm.update(buffer.finish())
             buffer.clear()
 
-        collections = math.ceil(args.timesteps / rollout.actual_collection_transitions)
+        collections = math.ceil(args.timesteps / actual_collection_transitions)
         collection_seconds = 0.0
         ppo_update_seconds = 0.0
         for _ in range(collections):
             th.cuda.synchronize()
             started = time.perf_counter()
-            for _ in range(rollout.rollout_steps):
+            for _ in range(rollout_steps):
                 runner.step()
             th.cuda.synchronize()
             collection_seconds += time.perf_counter() - started
@@ -235,10 +252,10 @@ def main() -> None:
         peak_reserved_mib = th.cuda.max_memory_reserved() / 2**20
         allocated_mib = th.cuda.memory_allocated() / 2**20
 
-        transitions = collections * rollout.actual_collection_transitions
-        collection_ticks = transitions * profile.frameskip
-        gradient_steps = collections * epochs * math.ceil(
-            rollout.actual_collection_transitions / profile.minibatch_size
+        transitions = collections * actual_collection_transitions
+        collection_ticks = transitions * PPO.frameskip
+        gradient_steps = collections * args.epochs * math.ceil(
+            actual_collection_transitions / PPO.minibatch_size
         )
         collection_ticks_per_second = collection_ticks / collection_seconds
         total_ticks_per_second = collection_ticks / elapsed
@@ -247,16 +264,19 @@ def main() -> None:
             args.log_file,
             {
                 "engine": "carl_jarl",
-                "profile": profile.name,
+                "profile": "unified",
                 "n_sim": args.n_sim,
-                "n_cars": rollout.n_cars,
-                "decision_environments": rollout.decision_environments,
-                "rollout_steps": rollout.rollout_steps,
-                "target_collection_transitions": profile.collection_transitions,
-                "actual_collection_transitions": rollout.actual_collection_transitions,
-                "frameskip": profile.frameskip,
-                "minibatch_size": profile.minibatch_size,
-                "epochs": epochs,
+                "n_cars": 2,
+                "decision_environments": decision_environments,
+                "rollout_steps": rollout_steps,
+                "target_collection_transitions": PPO.collection_transitions,
+                "actual_collection_transitions": actual_collection_transitions,
+                "frameskip": PPO.frameskip,
+                "minibatch_size": PPO.minibatch_size,
+                "epochs": args.epochs,
+                "goal_reward": GOAL_REWARD,
+                "touch_reward": TOUCH_REWARD,
+                "no_touch_timeout_seconds": NO_TOUCH_TIMEOUT_SECONDS,
                 "warmup_collections": args.warmup_collections,
                 "seed": seed,
                 "run_index": run_index,
