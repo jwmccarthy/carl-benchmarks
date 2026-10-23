@@ -22,6 +22,7 @@ constexpr int kThreads = 16;
 constexpr int kGamesPerThread = 24;
 constexpr int kDecisionActors = kThreads * kGamesPerThread * 2;
 int warmupIterations = 1;
+int epochs = 1;
 std::ofstream logFile;
 int reportedIterations = 0;
 
@@ -67,10 +68,11 @@ int main(int argc, char** argv) {
         const std::string arg = argv[i];
         if (arg == "--iterations" && i + 1 < argc) iterations = std::stoi(argv[++i]);
         else if (arg == "--warmup-iterations" && i + 1 < argc) warmupIterations = std::stoi(argv[++i]);
+        else if (arg == "--epochs" && i + 1 < argc) epochs = std::stoi(argv[++i]);
         else if (arg == "--log-file" && i + 1 < argc) output = argv[++i];
-        else { std::cerr << "usage: " << argv[0] << " [--iterations N] [--warmup-iterations N] [--log-file PATH]\n"; return 2; }
+        else { std::cerr << "usage: " << argv[0] << " [--iterations N] [--warmup-iterations N] [--epochs N] [--log-file PATH]\n"; return 2; }
     }
-    if (iterations < 1 || warmupIterations < 0) return 2;
+    if (iterations < 1 || warmupIterations < 0 || epochs < 1) return 2;
     std::filesystem::create_directories(output.parent_path());
     logFile.open(output, std::ios::app);
     RocketSim::Init(COLLISION_MESHES_DIR);
@@ -82,7 +84,7 @@ int main(int argc, char** argv) {
     config.expBufferSize = kCollection * 3;
     config.ppo.batchSize = kCollection;
     config.ppo.miniBatchSize = kMinibatch;
-    config.ppo.epochs = 1;
+    config.ppo.epochs = epochs;
     config.ppo.entCoef = .01f;
     config.ppo.policyLR = config.ppo.criticLR = 2e-4f;
     config.ppo.policyLayerSizes = {256, 256, 256};
