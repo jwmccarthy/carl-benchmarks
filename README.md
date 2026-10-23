@@ -44,3 +44,22 @@ uv run python benchmarks/jarl_carl.py --n-sim 1024
 | `--runs` | 5 | 5 |
 
 Results are appended to `results/benchmarks.jsonl`. Use `--runs 1` for a single measurement.
+
+## Reference-Parity Profiles
+
+`benchmarks/reference_configs.py` defines immutable RLGymPPO reference profiles and
+derived CARL configurations. Python uses 32 processes, 50,000 collection/minibatch
+transitions, and C++ uses 16 x 24 games (384 environments), 100,000 collection
+transitions, and 25,000 minibatches. Both use one epoch, `(256, 256, 256)` policy
+and critic networks, and frameskip 8. CARL sweeps `n_sim` over 512, 1024, 2048,
+4096, and 8192; every 1v1 simulation contributes two decision environments.
+
+```bash
+uv run python benchmarks/reference_runner.py
+uv run python benchmarks/reference_runner.py --profile rlgymppo_cpp --n-sim 1024 --collection-seconds 12.5 --ppo-update-seconds 0.8
+```
+
+The reported `collection_ticks_per_second` divides collection ticks by collection
+time only. `total_ticks_per_second` divides the same ticks by collection plus PPO
+update time. Self-play and snapshot-pool parity are deliberately not claimed: the
+CLI rejects `--self-play` until opponent scheduling is implemented and validated.
