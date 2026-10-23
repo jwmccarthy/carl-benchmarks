@@ -45,39 +45,47 @@ def build_env():
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the native Python RLGymPPO profile.")
     parser.add_argument("--iterations", type=int, default=1)
+    parser.add_argument("--warmup-iterations", type=int, default=1)
+    parser.add_argument("--epochs", type=int, default=RLGYMPPO_PYTHON.epochs)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     args = parser.parse_args()
-    if args.iterations < 1:
-        parser.error("--iterations must be positive")
+    if args.iterations < 1 or args.warmup_iterations < 0 or args.epochs < 1:
+        parser.error("iterations and epochs must be positive; warmup iterations cannot be negative")
 
     from rlgym_ppo import Learner
     import rlgym_ppo.learner as learner_module
     from rlgym_ppo.util import reporting
 
     original_report_metrics = reporting.report_metrics
+    reported_iterations = 0
 
     def report_metrics(loggable_metrics, debug_metrics, wandb_run):
+        nonlocal reported_iterations
         report = dict(loggable_metrics)
-        transitions = int(report["Timesteps Collected"])
-        collection_seconds = float(report["Timestep Collection Time"])
-        total_seconds = float(report["Total Iteration Time"])
-        ticks = transitions * RLGYMPPO_PYTHON.frameskip
-        append_result(
-            args.log_file,
-            {
-                "kind": "native_iteration",
-                "engine": "rlgymppo_python",
-                "profile": RLGYMPPO_PYTHON.name,
-                "frameskip": RLGYMPPO_PYTHON.frameskip,
-                "transitions": transitions,
-                "collection_ticks": ticks,
-                "collection_seconds": collection_seconds,
-                "ppo_update_seconds": total_seconds - collection_seconds,
-                "collection_ticks_per_second": ticks / collection_seconds,
-                "total_ticks_per_second": ticks / total_seconds,
-            },
-        )
+        if reported_iterations >= args.warmup_iterations:
+            transitions = int(report["Timesteps Collected"])
+            collection_seconds = float(report["Timestep Collection Time"])
+            total_seconds = float(report["Total Iteration Time"])
+            ticks = transitions * RLGYMPPO_PYTHON.frameskip
+            append_result(
+                args.log_file,
+                {
+                    "kind": "native_iteration",
+                    "engine": "rlgymppo_python",
+                    "profile": RLGYMPPO_PYTHON.name,
+                    "epochs": args.epochs,
+                    "warmup_iterations": args.warmup_iterations,
+                    "frameskip": RLGYMPPO_PYTHON.frameskip,
+                    "transitions": transitions,
+                    "collection_ticks": ticks,
+                    "collection_seconds": collection_seconds,
+                    "ppo_update_seconds": total_seconds - collection_seconds,
+                    "collection_ticks_per_second": ticks / collection_seconds,
+                    "total_ticks_per_second": ticks / total_seconds,
+                },
+            )
+        reported_iterations += 1
         original_report_metrics(loggable_metrics, debug_metrics, wandb_run)
 
     reporting.report_metrics = report_metrics
@@ -92,12 +100,13 @@ def main() -> None:
         n_proc=RLGYMPPO_PYTHON.processes,
         min_inference_size=29,
         random_seed=args.seed,
-        timestep_limit=args.iterations * RLGYMPPO_PYTHON.collection_transitions,
+        timestep_limit=(args.iterations + args.warmup_iterations)
+        * RLGYMPPO_PYTHON.collection_transitions,
         exp_buffer_size=RLGYMPPO_PYTHON.collection_transitions * 3,
         ts_per_iteration=RLGYMPPO_PYTHON.collection_transitions,
         policy_layer_sizes=RLGYMPPO_PYTHON.policy_layers,
         critic_layer_sizes=RLGYMPPO_PYTHON.critic_layers,
-        ppo_epochs=RLGYMPPO_PYTHON.epochs,
+        ppo_epochs=args.epochs,
         ppo_batch_size=RLGYMPPO_PYTHON.collection_transitions,
         ppo_minibatch_size=RLGYMPPO_PYTHON.minibatch_size,
         ppo_ent_coef=RLGYMPPO_PYTHON.entropy_coefficient,

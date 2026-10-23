@@ -86,6 +86,8 @@ def main() -> None:
     parser.add_argument("--n-sim", type=int, default=1024)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
+    parser.add_argument("--warmup-collections", type=int, default=1)
+    parser.add_argument("--epochs", type=int)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
@@ -94,8 +96,11 @@ def main() -> None:
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
+    if args.warmup_collections < 0 or (args.epochs is not None and args.epochs < 1):
+        parser.error("warmup collections cannot be negative and epochs must be positive")
 
     profile = REFERENCE_PROFILES[args.profile]
+    epochs = args.epochs or profile.epochs
     rollout = carl_rollout(profile, args.n_sim)
 
     base = CARLTorchVectorEnv(
@@ -170,7 +175,7 @@ def main() -> None:
         update = Update(
             transforms=(GAE(gamma=0.99, lambda_=0.95),),
             sampler=RolloutMinibatches(
-                batch_size=profile.minibatch_size, epochs=profile.epochs
+                batch_size=profile.minibatch_size, epochs=epochs
             ),
             loss=PPOLoss(
                 policy,
@@ -200,6 +205,12 @@ def main() -> None:
         th.cuda.reset_peak_memory_stats()
         algorithm = Algorithm(update)
         runner.reset()
+        for _ in range(args.warmup_collections):
+            for _ in range(rollout.rollout_steps):
+                runner.step()
+            algorithm.update(buffer.finish())
+            buffer.clear()
+
         collections = math.ceil(args.timesteps / rollout.actual_collection_transitions)
         collection_seconds = 0.0
         ppo_update_seconds = 0.0
@@ -226,7 +237,7 @@ def main() -> None:
 
         transitions = collections * rollout.actual_collection_transitions
         collection_ticks = transitions * profile.frameskip
-        gradient_steps = collections * profile.epochs * math.ceil(
+        gradient_steps = collections * epochs * math.ceil(
             rollout.actual_collection_transitions / profile.minibatch_size
         )
         collection_ticks_per_second = collection_ticks / collection_seconds
@@ -245,7 +256,8 @@ def main() -> None:
                 "actual_collection_transitions": rollout.actual_collection_transitions,
                 "frameskip": profile.frameskip,
                 "minibatch_size": profile.minibatch_size,
-                "epochs": profile.epochs,
+                "epochs": epochs,
+                "warmup_collections": args.warmup_collections,
                 "seed": seed,
                 "run_index": run_index,
                 "elapsed_seconds": elapsed,
