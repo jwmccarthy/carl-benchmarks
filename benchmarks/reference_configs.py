@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from math import floor
 from typing import Final
 
-from unified_configs import CARL_N_SIM_SWEEP, CPP_GAMES_PER_THREAD, CPP_THREADS, PPO, PYTHON_PROCESSES
+from unified_configs import CARL_N_SIM_SWEEP, CPP_GAMES_PER_THREAD, CPP_THREADS, PPO
 
 
 CARL_CARS_PER_1V1: Final = 2
@@ -63,21 +63,6 @@ class CARLRollout:
         }
 
 
-RLGYMPPO_PYTHON: Final = ReferenceProfile(
-    name="rlgymppo_python",
-    processes=PYTHON_PROCESSES,
-    threads=None,
-    games_per_thread=None,
-    collection_transitions=PPO.collection_transitions,
-    minibatch_size=PPO.minibatch_size,
-    epochs=PPO.epochs,
-    policy_layers=PPO.policy_layers,
-    critic_layers=PPO.critic_layers,
-    entropy_coefficient=PPO.entropy_coefficient,
-    learning_rate=PPO.learning_rate,
-    frameskip=PPO.frameskip,
-)
-
 RLGYMPPO_CPP: Final = ReferenceProfile(
     name="rlgymppo_cpp",
     processes=None,
@@ -94,7 +79,6 @@ RLGYMPPO_CPP: Final = ReferenceProfile(
 )
 
 REFERENCE_PROFILES: Final = {
-    RLGYMPPO_PYTHON.name: RLGYMPPO_PYTHON,
     RLGYMPPO_CPP.name: RLGYMPPO_CPP,
 }
 

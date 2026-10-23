@@ -4,9 +4,6 @@
 [submodule "jarl"]
 	path = jarl
 	url = https://github.com/jwmccarthy/JARL.git
-[submodule "rlgym-ppo"]
-	path = rlgym-ppo
-	url = https://github.com/AechPro/rlgym-ppo.git
 [submodule "rlgym-ppo-cpp"]
 	path = rlgym-ppo-cpp
 	url = https://github.com/ZealanL/RLGymPPO_CPP.git

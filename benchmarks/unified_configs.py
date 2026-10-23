@@ -1,5 +1,3 @@
-"""Shared, reproducible configuration for all three benchmark runners."""
-
 from dataclasses import dataclass
 from typing import Final
 
@@ -19,12 +17,10 @@ class UnifiedPPO:
     frameskip:              int             = 8
 
 
-PPO:                     Final = UnifiedPPO()
-PYTHON_PROCESSES:        Final = 32
-PYTHON_DECISION_ACTORS:  Final = 64  # Two cars in each 1v1 simulation.
-CPP_THREADS:             Final = 16
-CPP_GAMES_PER_THREAD:    Final = 24
-CPP_DECISION_ACTORS:     Final = CPP_THREADS * CPP_GAMES_PER_THREAD * 2
-GOAL_REWARD:             Final = 10.0
-TOUCH_REWARD:            Final = 0.1
+PPO:                      Final = UnifiedPPO()
+CPP_THREADS:              Final = 16
+CPP_GAMES_PER_THREAD:     Final = 24
+CPP_DECISION_ACTORS:      Final = CPP_THREADS * CPP_GAMES_PER_THREAD * 2
+GOAL_REWARD:              Final = 10.0
+TOUCH_REWARD:             Final = 0.1
 NO_TOUCH_TIMEOUT_SECONDS: Final = 10.0

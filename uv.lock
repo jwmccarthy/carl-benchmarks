@@ -46,8 +46,6 @@ dependencies = [
     { name = "carl", extra = ["gymnasium"] },
     { name = "gymnasium" },
     { name = "jarl" },
-    { name = "rlgym-rocket-league", extra = ["sim"] },
-    { name = "stable-baselines3" },
     { name = "tensorboard" },
     { name = "torch" },
 ]
@@ -57,8 +55,6 @@ requires-dist = [
     { name = "carl", extras = ["gymnasium"], directory = "carl" },
     { name = "gymnasium", specifier = ">=1.0" },
     { name = "jarl", directory = "jarl" },
-    { name = "rlgym-rocket-league", extras = ["sim"], specifier = "==2.0.1" },
-    { name = "stable-baselines3", specifier = ">=2.9.0" },
     { name = "tensorboard", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
 ]
@@ -70,15 +66,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
-]
-
-[[package]]
-name = "cmeel"
-version = "0.61.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2d/78/7b98621fe4cf98dfee1bc5df514f0fdacfb064637539229c386a09f23b4f/cmeel-0.61.0.tar.gz", hash = "sha256:5fe70c905da45cca02575b37b37f22750eee81b36d288e2fc6231c31a6cf4b35", size = 15173, upload-time = "2026-08-27T00:11:40.204Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/7f/4fe25f742a3dc50335371515e48761207cb8d6f51e55351486dc329ae6b0/cmeel-0.61.0-py3-none-any.whl", hash = "sha256:924f04ac525c1e2c4c42963b3a18a423926d019f81a683dfbab18143721963a8", size = 20754, upload-time = "2026-08-27T00:11:38.556Z" },
 ]
 
 [[package]]
@@ -548,42 +535,6 @@ wheels = [
 ]
 
 [[package]]
-name = "rlgym-api"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b0/b1/99eb0201c0a88d35886a00c020bdb262db29a83ea02eb61ef139988d9370/rlgym-api-2.0.0.tar.gz", hash = "sha256:f1ac4ac742dd93bb7fe8c08c2af2a5b11320ff5eec2936650febb2f7baf24c83", size = 11597, upload-time = "2025-01-06T18:39:37.891Z" }
-
-[[package]]
-name = "rlgym-rocket-league"
-version = "2.0.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "rlgym-api" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/99/21/b87ef7ebb0d76e654753349a4f343068d08e1a9eaffd9c77c0593b43668f/rlgym-rocket-league-2.0.1.tar.gz", hash = "sha256:3be8e9d2f1cfb6514e0e3d455fb33ff95e26eb7c399f819fff0258025cf4d501", size = 78840, upload-time = "2025-04-27T14:43:37.805Z" }
-
-[package.optional-dependencies]
-sim = [
-    { name = "rocketsim" },
-]
-
-[[package]]
-name = "rocketsim"
-version = "2.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cmeel" },
-    { name = "numpy" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/c3/4ddc46cb2c0d38721f73d1ede93520f6f3a198e33b70467f27b074580e79/rocketsim-2.2.1-0-cp36-abi3-macosx_14_0_arm64.whl", hash = "sha256:ea2fac9d1b5dec59fe394a1ce1fdc704fc60601d506bb0adbc839b6a76cf4840", size = 351131, upload-time = "2026-04-24T19:12:40.307Z" },
-    { url = "https://files.pythonhosted.org/packages/54/05/86b5a72b0200dfc1e023da2177cfdf60a6d7add300940dd63678ae97a573/rocketsim-2.2.1-0-cp36-abi3-manylinux_2_27_aarch64.whl", hash = "sha256:b244a9c0070a43c746d522f8286efa0ddff703ddc8e45caa6e182d352953254a", size = 565620, upload-time = "2026-04-24T19:12:42.116Z" },
-    { url = "https://files.pythonhosted.org/packages/0b/5d/949c965df733e25c1de1de1de3e4fa023d600ac7170356fc9fd17dea36ae/rocketsim-2.2.1-0-cp36-abi3-manylinux_2_27_x86_64.whl", hash = "sha256:2f9518e9895447d2480680b7825866e881981102c66365c1d9fea62589a0dd9d", size = 596386, upload-time = "2026-04-24T19:12:43.668Z" },
-    { url = "https://files.pythonhosted.org/packages/59/a8/06a952a92095bcd833d07599a04027e6c22f2b8ddb53e68758e9c661f2de/rocketsim-2.2.1-0-cp36-abi3-win_amd64.whl", hash = "sha256:e5a8bce3883e0f11a75b9bb23600ca7465ef9a455862985da355857f2cb0d9c3", size = 395715, upload-time = "2026-04-24T19:12:45.427Z" },
-]
-
-[[package]]
 name = "setuptools"
 version = "81.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -599,21 +550,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
-name = "stable-baselines3"
-version = "2.9.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cloudpickle" },
-    { name = "gymnasium" },
-    { name = "numpy" },
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/89/f8/9c1901a42e55b21b9e9559a720cb33dffdeb4c4215b1dfd10d63224b19c0/stable_baselines3-2.9.0.tar.gz", hash = "sha256:92b46c6099a0e8f99163ff09e26729e4d0a68b33dc8598626ca13ade3c0b3a61", size = 221345, upload-time = "2026-06-15T17:00:30.713Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/70/d18c8278223d4928378c4af822b66d3c87e19e73bcb011e05e2f0b43f4e5/stable_baselines3-2.9.0-py3-none-any.whl", hash = "sha256:95f39a473dce081d1abe31acaf7cee446dcf223dcd74093d6ea460bc37e2e748", size = 187606, upload-time = "2026-06-15T17:00:29.331Z" },
 ]
 
 [[package]]
