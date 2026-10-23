@@ -52,6 +52,7 @@ def main() -> None:
         parser.error("--iterations must be positive")
 
     from rlgym_ppo import Learner
+    import rlgym_ppo.learner as learner_module
     from rlgym_ppo.util import reporting
 
     original_report_metrics = reporting.report_metrics
@@ -80,6 +81,12 @@ def main() -> None:
         original_report_metrics(loggable_metrics, debug_metrics, wandb_run)
 
     reporting.report_metrics = report_metrics
+
+    class NoKeyboardInput:
+        def kbhit(self):
+            return False
+
+    learner_module.KBHit = NoKeyboardInput
     Learner(
         build_env,
         n_proc=RLGYMPPO_PYTHON.processes,
