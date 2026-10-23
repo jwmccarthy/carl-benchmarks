@@ -25,7 +25,6 @@ from results import append_result
 
 
 class RocketSimEnv(gym.Env):
-
     metadata = {"render_modes": []}
 
     def __init__(self, frameskip: int = 4, max_ticks: int = 36_000, seed: int = 0):
@@ -101,9 +100,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument(
-        "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
-    )
+    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()

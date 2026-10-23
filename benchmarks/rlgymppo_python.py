@@ -24,11 +24,13 @@ def build_env():
             state_mutator=MutatorSequence(FixedTeamSizeMutator(1, 1), KickoffMutator()),
             obs_builder=DefaultObs(
                 zero_padding=None,
-                pos_coef=np.asarray([
-                    1 / common_values.SIDE_WALL_X,
-                    1 / common_values.BACK_NET_Y,
-                    1 / common_values.CEILING_Z,
-                ]),
+                pos_coef=np.asarray(
+                    [
+                        1 / common_values.SIDE_WALL_X,
+                        1 / common_values.BACK_NET_Y,
+                        1 / common_values.CEILING_Z,
+                    ],
+                ),
                 ang_coef=1 / np.pi,
                 lin_vel_coef=1 / common_values.CAR_MAX_SPEED,
                 ang_vel_coef=1 / common_values.CAR_MAX_ANG_VEL,
@@ -57,9 +59,16 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     args = parser.parse_args()
-    if (args.iterations < 1 or args.warmup_iterations < 0 or args.epochs < 1
-            or args.n_proc < 1 or args.collection_transitions < 1
-            or args.minibatch_size < 1 or args.layer_size < 1 or args.layer_count < 1):
+    if (
+        args.iterations < 1
+        or args.warmup_iterations < 0
+        or args.epochs < 1
+        or args.n_proc < 1
+        or args.collection_transitions < 1
+        or args.minibatch_size < 1
+        or args.layer_size < 1
+        or args.layer_count < 1
+    ):
         parser.error("counts must be positive; warmup iterations cannot be negative")
     layers = (args.layer_size,) * args.layer_count
 

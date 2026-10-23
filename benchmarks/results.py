@@ -30,7 +30,4 @@ def append_episode(
     }
     if run_index is not None:
         episode["run_index"] = run_index
-    append_result(
-        path,
-        episode,
-    )
+    append_result(path, episode)

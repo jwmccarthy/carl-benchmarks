@@ -4,25 +4,26 @@ from dataclasses import asdict, dataclass
 from math import floor
 from typing import Final
 
-
 from unified_configs import CARL_N_SIM_SWEEP, CPP_GAMES_PER_THREAD, CPP_THREADS, PPO, PYTHON_PROCESSES
+
+
 CARL_CARS_PER_1V1: Final = 2
 
 
 @dataclass(frozen=True)
 class ReferenceProfile:
-    name: str
-    processes: int | None
-    threads: int | None
-    games_per_thread: int | None
+    name:                   str
+    processes:              int | None
+    threads:                int | None
+    games_per_thread:       int | None
     collection_transitions: int
-    minibatch_size: int
-    epochs: int
-    policy_layers: tuple[int, ...]
-    critic_layers: tuple[int, ...]
-    entropy_coefficient: float
-    learning_rate: float
-    frameskip: int
+    minibatch_size:         int
+    epochs:                 int
+    policy_layers:          tuple[int, ...]
+    critic_layers:          tuple[int, ...]
+    entropy_coefficient:    float
+    learning_rate:          float
+    frameskip:              int
 
     @property
     def environment_count(self) -> int:
@@ -37,11 +38,11 @@ class ReferenceProfile:
 
 @dataclass(frozen=True)
 class CARLRollout:
-    profile: ReferenceProfile
-    n_sim: int
-    n_cars: int
-    decision_environments: int
-    rollout_steps: int
+    profile:                       ReferenceProfile
+    n_sim:                         int
+    n_cars:                        int
+    decision_environments:         int
+    rollout_steps:                 int
     actual_collection_transitions: int
 
     @property
@@ -104,9 +105,9 @@ def carl_rollout(profile: ReferenceProfile, n_sim: int) -> CARLRollout:
 
     decision_environments = n_sim * CARL_CARS_PER_1V1
     rollout_steps = max(
-        1,
-        floor(profile.collection_transitions / decision_environments + 0.5),
+        1, floor(profile.collection_transitions / decision_environments + 0.5),
     )
+
     return CARLRollout(
         profile=profile,
         n_sim=n_sim,

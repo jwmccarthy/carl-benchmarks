@@ -41,7 +41,6 @@ from unified_configs import (
 
 
 class LookupCARLEnv:
-
     def __init__(self, env: CARLTorchVectorEnv) -> None:
         self.env = env
         self.n_envs = env.n_envs
@@ -72,7 +71,6 @@ class LookupCARLEnv:
 
 
 class FeedForwardCategoricalPolicy(CategoricalPolicy):
-
     def _logits(self, observation: th.Tensor) -> th.Tensor:
         return CompositeNet.forward(self, observation)
 
@@ -103,9 +101,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=PPO.epochs)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument(
-        "--log-file", type=Path, default=Path("results/benchmarks.jsonl")
-    )
+    parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
@@ -113,7 +109,9 @@ def main() -> None:
         parser.error("warmup collections cannot be negative and epochs must be positive")
 
     decision_environments = args.n_sim * 2
-    rollout_steps = max(1, math.floor(PPO.collection_transitions / decision_environments + 0.5))
+    rollout_steps = max(
+        1, math.floor(PPO.collection_transitions / decision_environments + 0.5),
+    )
     actual_collection_transitions = rollout_steps * decision_environments
 
     base = CARLTorchVectorEnv(
@@ -183,16 +181,16 @@ def main() -> None:
         )
 
         buffer = RolloutBuffer(
-            rollout_steps, env.n_envs, env.device, copy_on_finish=False
+            rollout_steps, env.n_envs, env.device, copy_on_finish=False,
         )
         runner = Runner(
-            env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic))
+            env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic)),
         )
 
         update = Update(
             transforms=(GAE(gamma=0.99, lambda_=0.95),),
             sampler=RolloutMinibatches(
-                batch_size=PPO.minibatch_size, epochs=args.epochs
+                batch_size=PPO.minibatch_size, epochs=args.epochs,
             ),
             loss=PPOLoss(
                 policy,
