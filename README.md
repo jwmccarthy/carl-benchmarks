@@ -17,49 +17,33 @@ CARL requires Python 3.11, a CUDA toolkit with `nvcc`, and a compatible NVIDIA d
 uv sync
 ```
 
-Verify each benchmark:
+Verify CARL's current-policy 1v1 self-play runner:
 
 ```bash
-uv run python benchmarks/sb3_rocketsim.py --test
 uv run python benchmarks/jarl_carl.py --test --n-sim 256
 ```
 
-Run five seeded measurements by default:
+Print the Python and C++ RLGymPPO reference profiles and derived CARL configurations:
 
 ```bash
-uv run python benchmarks/sb3_rocketsim.py --n-sim 1
-uv run python benchmarks/jarl_carl.py --n-sim 1024
+uv run python benchmarks/reference_runner.py
 ```
 
-| Argument | RocketSim default | CARL default |
-| --- | ---: | ---: |
-| `--n-sim` | 1 | 1,024 |
-| `--frameskip` | 4 | 4 |
-| `--max-ticks` | 36,000 | 36,000 |
-| `--timesteps` | 1,000,000 | 1,000,000 |
-| `--total-batch-size` | 32,768 | 32,768 |
-| `--minibatch-size` | 32,768 | 32,768 |
-| `--epochs` | 8 | 8 |
-| `--seed` | 0 | 0 |
-| `--runs` | 5 | 5 |
+Run five seeded CARL measurements using the C++ parity profile:
+
+```bash
+uv run python benchmarks/jarl_carl.py --profile rlgymppo_cpp --n-sim 1024
+```
 
 Results are appended to `results/benchmarks.jsonl`. Use `--runs 1` for a single measurement.
 
 ## Reference-Parity Profiles
 
-`benchmarks/reference_configs.py` defines immutable RLGymPPO reference profiles and
-derived CARL configurations. Python uses 32 processes, 50,000 collection/minibatch
-transitions, and C++ uses 16 x 24 games (384 environments), 100,000 collection
-transitions, and 25,000 minibatches. Both use one epoch, `(256, 256, 256)` policy
-and critic networks, and frameskip 8. CARL sweeps `n_sim` over 512, 1024, 2048,
-4096, and 8192; every 1v1 simulation contributes two decision environments.
+`benchmarks/reference_configs.py` defines immutable RLGymPPO reference profiles and derived CARL configurations. Python uses 32 processes and 50,000 collection/minibatch transitions. C++ uses 16 x 24 games (384 environments), 100,000 collection transitions, and 25,000 minibatches. Both use one epoch, `(256, 256, 256)` policy and critic networks, and frameskip 8. CARL sweeps `n_sim` over 512, 1024, 2048, 4096, and 8192; every 1v1 simulation contributes two decision environments.
 
 ```bash
 uv run python benchmarks/reference_runner.py
 uv run python benchmarks/reference_runner.py --profile rlgymppo_cpp --n-sim 1024 --collection-seconds 12.5 --ppo-update-seconds 0.8
 ```
 
-The reported `collection_ticks_per_second` divides collection ticks by collection
-time only. `total_ticks_per_second` divides the same ticks by collection plus PPO
-update time. Self-play and snapshot-pool parity are deliberately not claimed: the
-CLI rejects `--self-play` until opponent scheduling is implemented and validated.
+CARL uses the current shared policy for both players, with no snapshot pool. Its results report `collection_ticks_per_second`, which excludes PPO update time, and `total_ticks_per_second`, which includes it. The Python and C++ reference submodules retain their upstream build/run requirements; native reference result collection is not yet wired into this repository's JSONL format.

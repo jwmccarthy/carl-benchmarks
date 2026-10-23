@@ -25,18 +25,8 @@ def main() -> None:
         type=float,
         help="Measured time spent updating PPO for that rollout.",
     )
-    parser.add_argument(
-        "--self-play",
-        action="store_true",
-        help="Rejected: self-play/snapshot-pool parity is not implemented.",
-    )
     args = parser.parse_args()
 
-    if args.self_play:
-        parser.error(
-            "TODO: self-play and snapshot-pool parity are not implemented; "
-            "validate opponent scheduling before enabling this mode"
-        )
     if (args.collection_seconds is None) != (args.ppo_update_seconds is None):
         parser.error("--collection-seconds and --ppo-update-seconds must be provided together")
     if args.collection_seconds is not None and (

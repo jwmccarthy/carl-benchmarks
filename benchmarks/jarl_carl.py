@@ -25,26 +25,22 @@ from jarl.modules.base import CompositeNet
 from jarl.modules.encoder import FlattenEncoder
 from jarl.modules.operator import Critic
 from jarl.modules.policy import CategoricalPolicy
-from jarl.runtime import OnPolicySchedule, Trainer
 from jarl.sample import RolloutMinibatches
 from jarl.store import RolloutBuffer
 from jarl.transform import GAE
 
 from actions import carl_lookup_table
+from reference_configs import REFERENCE_PROFILES, carl_rollout
 from results import append_result
 
 
 class LookupCARLEnv:
 
-    def __init__(self, env: CARLTorchVectorEnv, seed: int) -> None:
+    def __init__(self, env: CARLTorchVectorEnv) -> None:
         self.env = env
-        self.n_envs = env.n_sim
+        self.n_envs = env.n_envs
         self.device = env.device
-        self.generator = th.Generator(device=self.device).manual_seed(seed)
         self.lookup = carl_lookup_table(self.device)
-
-        self.blue_indices = th.arange(env.n_sim, device=self.device) * env.n_cars
-        self.orange_indices = self.blue_indices + 1
 
         self.single_observation_space = env.single_observation_space
         self.single_action_space = gym.spaces.Discrete(90)
@@ -52,7 +48,7 @@ class LookupCARLEnv:
         self.action_space = batch_space(self.single_action_space, self.n_envs)
 
     def reset(self, **kwargs):
-        return self.env.reset(**kwargs)[self.blue_indices]
+        return self.env.reset(**kwargs)
 
     def step(self, action):
         action = th.as_tensor(action, dtype=th.long, device=self.device).reshape(-1)
@@ -63,26 +59,7 @@ class LookupCARLEnv:
         if ((action < 0) | (action >= 90)).any():
             raise ValueError("action IDs must be in [0, 89]")
 
-        opponent = th.randint(
-            90,
-            (self.n_envs,),
-            generator=self.generator,
-            device=self.device,
-        )
-        actions = th.empty((self.env.n_envs,), dtype=th.long, device=self.device)
-        actions[self.blue_indices] = action
-        actions[self.orange_indices] = opponent
-
-        observation, reward, terminated, truncated, _ = self.env.step(
-            self.lookup[actions]
-        )
-        return (
-            observation[self.blue_indices],
-            reward[self.blue_indices],
-            terminated[self.blue_indices],
-            truncated[self.blue_indices],
-            {},
-        )
+        return self.env.step(self.lookup[action])
 
     def close(self):
         self.env.close()
@@ -105,13 +82,10 @@ class FeedForwardCategoricalPolicy(CategoricalPolicy):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in CARL")
+    parser.add_argument("--profile", choices=REFERENCE_PROFILES, default="rlgymppo_cpp")
     parser.add_argument("--n-sim", type=int, default=1024)
-    parser.add_argument("--frameskip", type=int, default=4)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
-    parser.add_argument("--total-batch-size", type=int, default=32_768)
-    parser.add_argument("--minibatch-size", type=int, default=32_768)
-    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(
@@ -121,19 +95,20 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    rollout_steps = args.total_batch_size // args.n_sim
+    profile = REFERENCE_PROFILES[args.profile]
+    rollout = carl_rollout(profile, args.n_sim)
 
     base = CARLTorchVectorEnv(
         n_sim=args.n_sim,
         n_blue=1,
         n_orange=1,
         seed=args.seed,
-        frameskip=args.frameskip,
+        frameskip=profile.frameskip,
         max_ticks=args.max_ticks,
         normalize=True,
         discrete_actions=True,
     )
-    env = LookupCARLEnv(base, args.seed)
+    env = LookupCARLEnv(base)
 
     observation = env.reset()
 
@@ -143,7 +118,10 @@ def main() -> None:
         )
         if next_observation.shape != observation.shape:
             raise RuntimeError("CARL observation shape changed after a step")
-        print(f"test passed: observation {tuple(observation.shape)}, actions [0, 89]")
+        print(
+            f"test passed: observation {tuple(observation.shape)}, actions [0, 89]; "
+            f"{env.n_envs} current-policy self-play actors"
+        )
         env.close()
         return
 
@@ -158,16 +136,16 @@ def main() -> None:
             n_blue=1,
             n_orange=1,
             seed=seed,
-            frameskip=args.frameskip,
+            frameskip=profile.frameskip,
             max_ticks=args.max_ticks,
             normalize=True,
             discrete_actions=True,
         )
-        env = LookupCARLEnv(base, seed)
+        env = LookupCARLEnv(base)
         policy = (
             FeedForwardCategoricalPolicy(
                 foot=FlattenEncoder(),
-                body=MLP(dims=[64, 64], func=nn.Tanh),
+                body=MLP(dims=list(profile.policy_layers), func=nn.Tanh),
             )
             .build(env)
             .to(env.device)
@@ -176,14 +154,14 @@ def main() -> None:
         critic = (
             Critic(
                 foot=FlattenEncoder(),
-                body=MLP(dims=[64, 64], func=nn.Tanh),
+                body=MLP(dims=list(profile.critic_layers), func=nn.Tanh),
             )
             .build(env)
             .to(env.device)
         )
 
         buffer = RolloutBuffer(
-            rollout_steps, env.n_envs, env.device, copy_on_finish=False
+            rollout.rollout_steps, env.n_envs, env.device, copy_on_finish=False
         )
         runner = Runner(
             env, policy, buffer, captures=(LogProbCapture(), CriticCapture(critic))
@@ -192,58 +170,91 @@ def main() -> None:
         update = Update(
             transforms=(GAE(gamma=0.99, lambda_=0.95),),
             sampler=RolloutMinibatches(
-                batch_size=args.minibatch_size, epochs=args.epochs
+                batch_size=profile.minibatch_size, epochs=profile.epochs
             ),
             loss=PPOLoss(
                 policy,
                 critic,
-                PPOConfig(clip=0.2, value_clip=None, value_coef=0.5, entropy_coef=0.0),
+                PPOConfig(
+                    clip=0.2,
+                    value_clip=None,
+                    value_coef=0.5,
+                    entropy_coef=profile.entropy_coefficient,
+                ),
             ),
             optimizer_step=IndependentOptimizerSteps(
                 OptimizerStep(
-                    policy, Adam(policy.parameters(), lr=3e-4), max_grad_norm=0.5
+                    policy,
+                    Adam(policy.parameters(), lr=profile.learning_rate),
+                    max_grad_norm=0.5,
                 ),
                 OptimizerStep(
-                    critic, Adam(critic.parameters(), lr=3e-4), max_grad_norm=0.5
+                    critic,
+                    Adam(critic.parameters(), lr=profile.learning_rate),
+                    max_grad_norm=0.5,
                 ),
             ),
             section="PPO",
         )
 
         th.cuda.reset_peak_memory_stats()
-        started = time.perf_counter()
-        Trainer(runner, buffer, Algorithm(update), OnPolicySchedule()).run(
-            args.timesteps
-        )
-        th.cuda.synchronize()
-        elapsed = time.perf_counter() - started
+        algorithm = Algorithm(update)
+        runner.reset()
+        collections = math.ceil(args.timesteps / rollout.actual_collection_transitions)
+        collection_seconds = 0.0
+        ppo_update_seconds = 0.0
+        for _ in range(collections):
+            th.cuda.synchronize()
+            started = time.perf_counter()
+            for _ in range(rollout.rollout_steps):
+                runner.step()
+            th.cuda.synchronize()
+            collection_seconds += time.perf_counter() - started
+
+            th.cuda.synchronize()
+            started = time.perf_counter()
+            algorithm.update(buffer.finish())
+            buffer.clear()
+            th.cuda.synchronize()
+            ppo_update_seconds += time.perf_counter() - started
+
+        elapsed = collection_seconds + ppo_update_seconds
 
         peak_allocated_mib = th.cuda.max_memory_allocated() / 2**20
         peak_reserved_mib = th.cuda.max_memory_reserved() / 2**20
         allocated_mib = th.cuda.memory_allocated() / 2**20
 
-        collections = math.ceil(args.timesteps / args.total_batch_size)
-        transitions = collections * args.total_batch_size
-
-        gradient_steps = (
-            collections * args.epochs * (args.total_batch_size // args.minibatch_size)
+        transitions = collections * rollout.actual_collection_transitions
+        collection_ticks = transitions * profile.frameskip
+        gradient_steps = collections * profile.epochs * math.ceil(
+            rollout.actual_collection_transitions / profile.minibatch_size
         )
-        transitions_per_second = transitions / elapsed
+        collection_ticks_per_second = collection_ticks / collection_seconds
+        total_ticks_per_second = collection_ticks / elapsed
 
         append_result(
             args.log_file,
             {
                 "engine": "carl_jarl",
+                "profile": profile.name,
                 "n_sim": args.n_sim,
-                "frameskip": args.frameskip,
-                "total_batch_size": args.total_batch_size,
-                "minibatch_size": args.minibatch_size,
-                "epochs": args.epochs,
+                "n_cars": rollout.n_cars,
+                "decision_environments": rollout.decision_environments,
+                "rollout_steps": rollout.rollout_steps,
+                "target_collection_transitions": profile.collection_transitions,
+                "actual_collection_transitions": rollout.actual_collection_transitions,
+                "frameskip": profile.frameskip,
+                "minibatch_size": profile.minibatch_size,
+                "epochs": profile.epochs,
                 "seed": seed,
                 "run_index": run_index,
                 "elapsed_seconds": elapsed,
+                "collection_seconds": collection_seconds,
+                "ppo_update_seconds": ppo_update_seconds,
                 "transitions": transitions,
-                "transitions_per_second": transitions_per_second,
+                "collection_ticks": collection_ticks,
+                "collection_ticks_per_second": collection_ticks_per_second,
+                "total_ticks_per_second": total_ticks_per_second,
                 "collections": collections,
                 "gradient_updates": gradient_steps,
                 "peak_allocated_mib": peak_allocated_mib,
@@ -253,22 +264,23 @@ def main() -> None:
         )
 
         print(
-            f"run {run_index}: completed {transitions} transitions in {elapsed:.2f}s "
-            f"({transitions_per_second:.0f} transitions/s); "
+            f"run {run_index}: completed {collection_ticks} ticks in {elapsed:.2f}s "
+            f"({collection_ticks_per_second:.0f} collection ticks/s, "
+            f"{total_ticks_per_second:.0f} total ticks/s); "
             f"{collections} collections, {gradient_steps} gradient updates; "
             f"peak VRAM {peak_allocated_mib:.0f} MiB allocated / "
             f"{peak_reserved_mib:.0f} MiB reserved",
         )
         elapsed_times.append(elapsed)
-        throughputs.append(transitions_per_second)
+        throughputs.append(total_ticks_per_second)
         env.close()
 
     elapsed_stdev = statistics.stdev(elapsed_times) if args.runs > 1 else 0.0
     throughput_stdev = statistics.stdev(throughputs) if args.runs > 1 else 0.0
     print(
         f"summary ({args.runs} runs): elapsed {statistics.mean(elapsed_times):.2f}s "
-        f"+/- {elapsed_stdev:.2f}s; throughput {statistics.mean(throughputs):.0f} "
-        f"+/- {throughput_stdev:.0f} transitions/s",
+        f"+/- {elapsed_stdev:.2f}s; total throughput {statistics.mean(throughputs):.0f} "
+        f"+/- {throughput_stdev:.0f} ticks/s",
     )
 
 
