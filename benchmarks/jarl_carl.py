@@ -32,7 +32,6 @@ from jarl.transform import GAE
 from actions import carl_lookup_table
 from results import append_result
 from unified_configs import (
-    CARL_N_SIM_SWEEP,
     GOAL_REWARD,
     NO_TOUCH_TIMEOUT_SECONDS,
     PPO,
@@ -93,23 +92,31 @@ def unified_reward(context) -> th.Tensor:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train JARL PPO in CARL")
-    parser.add_argument("--n-sim", type=int, choices=CARL_N_SIM_SWEEP, default=1024)
+    parser.add_argument("--n-sim", type=int, default=1024)
     parser.add_argument("--max-ticks", type=int, default=36_000)
     parser.add_argument("--timesteps", type=int, default=1_000_000)
+    parser.add_argument("--collection-transitions", type=int, default=PPO.collection_transitions)
     parser.add_argument("--warmup-collections", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=PPO.epochs)
+    parser.add_argument("--frameskip", type=int, default=PPO.frameskip)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--log-file", type=Path, default=Path("results/benchmarks.jsonl"))
     parser.add_argument("--test", action="store_true")
 
     args = parser.parse_args()
-    if args.warmup_collections < 0 or args.epochs < 1:
-        parser.error("warmup collections cannot be negative and epochs must be positive")
+    if (
+        args.n_sim < 1
+        or args.collection_transitions < 1
+        or args.warmup_collections < 0
+        or args.epochs < 1
+        or args.frameskip < 1
+    ):
+        parser.error("n-sim, collection transitions, epochs, and frameskip must be positive; warmup collections cannot be negative")
 
     decision_environments = args.n_sim * 2
     rollout_steps = max(
-        1, math.floor(PPO.collection_transitions / decision_environments + 0.5),
+        1, math.floor(args.collection_transitions / decision_environments + 0.5),
     )
     actual_collection_transitions = rollout_steps * decision_environments
 
@@ -118,7 +125,7 @@ def main() -> None:
         n_blue=1,
         n_orange=1,
         seed=args.seed,
-        frameskip=PPO.frameskip,
+        frameskip=args.frameskip,
         max_ticks=args.max_ticks,
         no_touch_timeout_seconds=NO_TOUCH_TIMEOUT_SECONDS,
         normalize=True,
@@ -153,7 +160,7 @@ def main() -> None:
             n_blue=1,
             n_orange=1,
             seed=seed,
-            frameskip=PPO.frameskip,
+            frameskip=args.frameskip,
             max_ticks=args.max_ticks,
             no_touch_timeout_seconds=NO_TOUCH_TIMEOUT_SECONDS,
             normalize=True,
@@ -250,7 +257,7 @@ def main() -> None:
         allocated_mib = th.cuda.memory_allocated() / 2**20
 
         transitions = collections * actual_collection_transitions
-        collection_ticks = transitions * PPO.frameskip
+        collection_ticks = transitions * args.frameskip
         gradient_steps = collections * args.epochs * math.ceil(
             actual_collection_transitions / PPO.minibatch_size
         )
@@ -266,9 +273,9 @@ def main() -> None:
                 "n_cars":                        2,
                 "decision_environments":         decision_environments,
                 "rollout_steps":                 rollout_steps,
-                "target_collection_transitions": PPO.collection_transitions,
+                "target_collection_transitions": args.collection_transitions,
                 "actual_collection_transitions": actual_collection_transitions,
-                "frameskip":                     PPO.frameskip,
+                "frameskip":                     args.frameskip,
                 "minibatch_size":                PPO.minibatch_size,
                 "epochs":                        args.epochs,
                 "goal_reward":                   GOAL_REWARD,

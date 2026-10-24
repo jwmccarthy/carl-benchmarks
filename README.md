@@ -49,27 +49,17 @@ Five warmed 1M-decision-step trials per row unless noted. Rates are physics tick
 
 ### One Epoch
 
-<table>
-  <thead>
-    <tr>
-      <th>Method</th>
-      <th align="center">Decision actors</th>
-      <th align="center">Collection ticks/s</th>
-      <th align="center">Total ticks/s</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr><td rowspan="6">RLGymPPO C++</td><td align="right">256</td><td align="right">213,085</td><td align="right">185,711</td></tr>
-    <tr><td align="right">512</td><td align="right">343,324</td><td align="right">283,170</td></tr>
-    <tr><td align="right">1,024</td><td align="right">636,481</td><td align="right">498,684</td></tr>
-    <tr><td align="right">2,048</td><td align="right">918,495</td><td align="right">658,993</td></tr>
-    <tr><td align="right">4,096</td><td align="right">1,110,675</td><td align="right">766,028</td></tr>
-    <tr><td align="right">8,192</td><td align="right">1,022,951</td><td align="right">726,324</td></tr>
-    <tr><td rowspan="6">CARL/JARL</td><td align="right">1,024</td><td align="right">1,737,281 +/- 34,789</td><td align="right">1,505,551 +/- 25,932</td></tr>
-    <tr><td align="right">2,048</td><td align="right">2,825,148 +/- 91,142</td><td align="right">2,255,980 +/- 59,983</td></tr>
-    <tr><td align="right">4,096</td><td align="right">5,276,434 +/- 109,103</td><td align="right">3,713,999 +/- 55,275</td></tr>
-    <tr><td align="right">8,192</td><td align="right">8,554,713 +/- 72,822</td><td align="right">5,073,206 +/- 29,150</td></tr>
-    <tr><td align="right">16,384</td><td align="right">13,154,913 +/- 131,165</td><td align="right">6,398,822 +/- 37,637</td></tr>
-    <tr><td align="right">32,768</td><td align="right">15,954,427</td><td align="right">7,121,066</td></tr>
-  </tbody>
-</table>
+| Method | Decision actors | Collection ticks/s | Total ticks/s |
+| --- | ---: | ---: | ---: |
+| RLGymPPO C++ | 256 | 213,085 | 185,711 |
+| RLGymPPO C++ | 512 | 343,324 | 283,170 |
+| RLGymPPO C++ | 1,024 | 636,481 | 498,684 |
+| RLGymPPO C++ | 2,048 | 918,495 | 658,993 |
+| RLGymPPO C++ | 4,096 | 1,110,675 | 766,028 |
+| RLGymPPO C++ | 8,192 | 1,022,951 | 726,324 |
+| CARL/JARL | 1,024 | 1,737,281 +/- 34,789 | 1,505,551 +/- 25,932 |
+| CARL/JARL | 2,048 | 2,825,148 +/- 91,142 | 2,255,980 +/- 59,983 |
+| CARL/JARL | 4,096 | 5,276,434 +/- 109,103 | 3,713,999 +/- 55,275 |
+| CARL/JARL | 8,192 | 8,554,713 +/- 72,822 | 5,073,206 +/- 29,150 |
+| CARL/JARL | 16,384 | 13,154,913 +/- 131,165 | 6,398,822 +/- 37,637 |
+| CARL/JARL | 32,768 | 15,954,427 | 7,121,066 |

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Final
 
 
-CARL_N_SIM_SWEEP: Final = (512, 1024, 2048, 4096, 8192, 16384)
+CARL_N_SIM_SWEEP: Final = (512, 1024, 2048, 4096, 8192, 16384, 32768)
 
 
 @dataclass(frozen=True)
